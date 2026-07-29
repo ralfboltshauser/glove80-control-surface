@@ -20,7 +20,7 @@ an internal boundary, not a public plugin SDK commitment.
 }
 ```
 
-An integration manifest may declare:
+A compiled `IntegrationDescriptor` may declare:
 
 - selectable fixed targets;
 - safe actions;

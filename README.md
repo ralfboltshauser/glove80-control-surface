@@ -48,7 +48,8 @@ One macOS application
 
 See [Product model](docs/product.md), [Architecture](docs/architecture.md),
 [User experience](docs/user-experience.md), and
-[Integration model](docs/integrations.md).
+[Desktop application plan](docs/application.md). The internal semantic boundary
+is detailed in [Integration model](docs/integrations.md).
 
 ## Principles
 
@@ -95,6 +96,7 @@ requirements rather than quietly becoming requirements themselves.
 
 - [Roadmap](docs/roadmap.md)
 - [End-to-end user experience](docs/user-experience.md)
+- [Desktop application and visual editor](docs/application.md)
 - [Future-user needs](docs/user-needs.md)
 - [Open design questions](docs/open-questions.md)
 - [Firmware boundary](docs/firmware.md)

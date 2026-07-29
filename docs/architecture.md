@@ -35,10 +35,20 @@ One process initially owns all runtime responsibilities:
 - dispatches control-layer events; and
 - presents a small configuration UI and interaction HUD.
 
+One coordinator is the logical state owner, while independent cancellable tasks
+keep HID leases and integration observation responsive. A `SurfaceDevice`
+adapter hides reports, sessions, fragmentation, and both-half acknowledgements
+behind complete desired scenes. Desired and device-applied state remain
+separate so the UI never claims a stale half is synchronized.
+
 These remain internal module boundaries, not separate processes or a public
 SDK. A daemon, authenticated local RPC, worker isolation, and a separate
 Electron renderer are added only if measured lifecycle or security needs
 justify them.
+
+The internal ports, visual keyboard editor, state flows, implementation
+recommendation, and delivery phases are specified in
+[Desktop application plan](application.md).
 
 ### Integrations
 

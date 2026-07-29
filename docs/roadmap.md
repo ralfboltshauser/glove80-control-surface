@@ -1,79 +1,105 @@
 # Roadmap
 
-This roadmap orders risk reduction, not feature desirability.
+This roadmap orders vertical risk reduction, not feature desirability. The
+application starts against fakes immediately; it does not wait for 80-cell
+firmware before testing the product UX.
 
-## Phase 0 — make the behavior precise
+## Phase 0 — contracts and feasibility
 
-- Specify the display/interaction state machine.
-- Specify the minimal session, scene, feature, and input reports.
-- Add shared protocol vectors and malformed-message tests.
+- Specify the firmware display/interaction state machine and byte-level
+  session, scene, feature, and input reports.
+- Specify the app domain types, `SurfaceDevice`, and `IntegrationAdapter`.
+- Separate desired scene from device-applied scene.
+- Add shared golden protocol vectors and malformed-message tests.
 - Record the exact tested MoErgo commit, descriptor, board, and current
   six-cell protocol.
+- Prove a normally code-signed, non-sandboxed Swift process can open the vendor HID
+  collection and maintain background renewal through sleep/wake.
+- Build deterministic fake surface-device and task-integration adapters.
 
-Exit criterion: a reviewed byte-level specification, golden vectors, and a
-decoder test agree; every expiry/press transition has an expected outcome.
+Exit criterion: the protocol decoder passes reviewed vectors, every
+expiry/press transition has an expected outcome, and the application can run
+its lifecycle entirely against fakes.
 
-## Phase 1 — six ambient cells over USB
+## Phase 1 — visual editor with fakes
 
-- Drive the existing six left cells from a minimal command-line host.
-- Implement one complete fixed-RGB scene with sequence and TTL.
+- Build the one-process native app and single logical state owner.
+- Render both physical halves from the versioned device catalog.
+- Add select, inspect, bind, preview, Undo, zoom/fit, status, and accessible
+  non-spatial navigation.
+- Add optional read-only MoErgo JSON import for accurate base-layer legends.
+- Simulate desired/applied divergence, right-half lag, stale targets, pause,
+  reconnect, and action results.
+
+Exit criterion: select left `1`, bind fake Agent 123, watch working pulse become
+completed green, and see both simulated halves acknowledge the generation.
+
+## Phase 2 — six-cell ambient vertical slice
+
+- Connect `Glove80SurfaceDevice` to the existing six-cell USB reports.
 - Fix compositor priority and current-state power computation.
-- Validate exact cells, expiry, ordinary RGB coexistence, Magic status, battery
-  behavior, and malformed reports.
-- Connect one real built-in integration to ambient state.
+- Validate exact cells, expiry, ordinary RGB coexistence, Magic diagnostics,
+  battery behavior, and malformed reports.
+- Implement the real built-in Codex adapter for target discovery and semantic
+  state observation; leave physical action dispatch disabled.
+- Show desired, applied, stale, incompatible, and paused states honestly.
 
-Exit criterion: the six keys provide useful glanceable state for daily USB use
-without changing typing behavior.
+Exit criterion: bind left `1` to a real Codex target and observe
+working → completed/stale on one of the six proven cells without changing its
+typing behavior or reflashing.
 
-## Phase 2 — complete left half
+## Phase 3 — momentary interaction vertical slice
 
-- Add chunked, atomic scene commits.
+- Resolve and document one exact physical trigger and keymap integration seam.
+- Add the vendor input report and host deduplication.
+- Add the reserved surface layer and generic surface-key behaviors.
+- Freeze binding allocation by interaction epoch.
+- Prototype the non-focus-stealing HUD and one safe Codex action.
+- Test trigger release, crash, lease expiry, sleep/wake, USB unplug, reboot,
+  duplicate/gapped events, and keys held across every transition.
+
+Exit criterion: holding the trigger and pressing left `1` invokes the bound
+action; release immediately restores ordinary typing, and no new normal press
+is lost after failure.
+
+## Phase 4 — complete left half
+
+- Add fragmented, atomic complete-scene commits.
 - Enforce and measure a complete-frame current budget.
 - Map and validate every available left-half RGB cell.
 - Implement solid, pulse, and blink locally.
+- Reuse the existing app/editor interfaces without a cell-count special case.
 
 Exit criterion: all 40 left cells render independently and safely under
 worst-case static and animated scenes.
 
-## Phase 3 — complete right half
+## Phase 5 — complete right half
 
 - Add the versioned scene snapshot protocol over the split link.
 - Coalesce updates and acknowledge applied generations.
 - Test disconnect/reconnect, reboot, mixed versions, packet loss, and stale
   peripheral state.
 - Enforce the right half's independent power and battery budget.
+- Display central/right applied generations and failure independently.
 
 Exit criterion: all 80 cells are addressable, reconnect to the latest scene,
 and fail without affecting typing or the other half.
 
-## Phase 4 — momentary interaction
+## Phase 6 — product hardening and adapter evidence
 
-- Resolve and document one exact trigger and keymap integration seam.
-- Add the vendor input report and host deduplication.
-- Add one reserved surface layer and surface-key behaviors for all positions.
-- Test trigger release, application crash, TTL expiry, sleep/wake, USB unplug,
-  reboot, and keys held across every transition.
-- Prototype and user-test a labeled on-screen HUD and action feedback.
+- Harden menu-bar lifecycle, pause/clear, Keychain, notifications,
+  configuration migration, and secret-free import/export.
+- Implement one command-only and one dynamic/aggregate built-in integration.
+- Add a stable dynamic region provider and freeze it during interaction.
+- Complete keyboard-only, VoiceOver, reduced-motion, no-flash, high-contrast,
+  and increased-text testing.
+- Review the common integration contract against all three real shapes.
 
-Exit criterion: no new normal key press is lost after session expiry, and one
-real action completes end to end with understandable accepted/failed feedback.
+Exit criterion: fixed-resource, command-only, and dynamic/aggregate needs fit
+without device or UI special cases. Only then decide whether a public plugin
+SDK is justified.
 
-## Phase 5 — smallest configurable application
-
-- Keep HID, configuration, built-in integrations, HUD, and editing in one
-  process.
-- Store bindings and accessible presentation preferences locally.
-- Add identify-key preview.
-- Add connected/stale/paused/offline state, one-click clear, and secret-free
-  export.
-- Implement a second and third materially different built-in integration.
-- Implement one stable dynamic region provider and freeze its mapping during
-  interaction.
-
-Exit criterion: fixed-resource, command-only, and aggregate/dynamic needs are
-understood well enough to decide whether a public plugin SDK is justified.
-
-## Phase 6 — safe install and compatibility
+## Phase 7 — safe install and compatibility
 
 - Define the narrow keymap integration seam.
 - Build a compatibility matrix against exact MoErgo revisions and hardware
@@ -81,15 +107,17 @@ understood well enough to decide whether a public plugin SDK is justified.
 - Produce canonical side-specific manifests, hashes, and known-good recovery
   artifacts. Add signatures only after defining a trust root and threat model.
 - Guide bootloader detection, artifact-side validation, flash, verification,
-  and recovery.
+  and recovery as an explicit workflow separate from the runtime app.
 
 Exit criterion: a new supported user can reach the 80-cell product without
 manual source editing and can return to a known-good build.
 
 ## Evidence-gated expansions
 
-- Bluetooth after live bidirectional HID, caching, and power validation.
-- Public plugin SDK after three built-in integrations stabilize the contract.
+- Bluetooth after live bidirectional HID, caching, lease, and power validation.
+- Public out-of-process plugin SDK after three built-in integrations stabilize
+  the semantic contract and a threat model exists.
 - Separate daemon/UI processes only if lifecycle or isolation demands them.
+- Multiple keyboards and active-host takeover policy.
 - Pages only if one 80-cell surface cannot remain discoverable.
-- Cross-platform and additional keyboards after the Glove80 product is useful.
+- Cross-platform UI after the native Glove80 product is useful.

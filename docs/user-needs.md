@@ -51,6 +51,9 @@ the explicit way to make it dark without changing the user's underglow choice.
 
 An identify mode links hardware and editor: selecting a key in software lights
 it, and pressing a surface key selects it in software. Exports omit secrets.
+Because firmware topology does not contain the user's key legends, the editor
+may import a MoErgo layout JSON as replaceable read-only display metadata. It
+never rewrites or flashes that imported configuration.
 
 ## Accessibility
 

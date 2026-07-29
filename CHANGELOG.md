@@ -12,3 +12,5 @@ All notable changes to this project will be documented here.
 - Added future-user requirements and explicit evidence gates for expansion.
 - Documented the complete key-to-integration UX using a Codex agent binding as
   the concrete example.
+- Planned the native desktop application, MoErgo-inspired visual editor,
+  adapter contracts, state flows, tests, and phased delivery.
