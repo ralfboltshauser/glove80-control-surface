@@ -42,12 +42,14 @@ RGB_EFF RGB_EFR
 RGB_COLOR_HSB
 ```
 
-The MoErgo fork additionally implements `RGB_STATUS`, a temporary diagnostic
+The tested MoErgo fork at commit
+`2f73a230e2fc7b2bd64a9736181e87bf54338131` additionally implements
+`RGB_STATUS`, a temporary diagnostic
 overlay for batteries, locks, layers, Bluetooth profiles, USB, and output
 fallback:
 
-- [MoErgo RGB source](https://github.com/moergo-sc/zmk/blob/main/app/src/rgb_underglow.c)
-- [MoErgo RGB command definitions](https://github.com/moergo-sc/zmk/blob/main/app/include/dt-bindings/zmk/rgb.h)
+- [MoErgo RGB source](https://github.com/moergo-sc/zmk/blob/2f73a230e2fc7b2bd64a9736181e87bf54338131/app/src/rgb_underglow.c)
+- [MoErgo RGB command definitions](https://github.com/moergo-sc/zmk/blob/2f73a230e2fc7b2bd64a9736181e87bf54338131/app/include/dt-bindings/zmk/rgb.h)
 - [Glove80 indicator documentation](https://docs.moergo.com/glove80-user-guide/typing-with-glove80/)
 
 ## Pixel driver
@@ -65,3 +67,19 @@ for compact semantic state but not designed as a 40-pixel framebuffer stream.
 
 The project should add a dedicated semantic scene path for right-side rendering
 rather than exposing generic behavior invocation to the desktop.
+
+## Proven experimental descriptor
+
+The currently tested custom descriptor adds:
+
+- vendor usage page `0xFF60`;
+- Output report ID 4 with a 24-byte body;
+- Feature report ID 5 with a 16-byte body;
+- six left RGB cells;
+- protocol version 1;
+- maximum channel value 32; and
+- a 60-second maximum timeout.
+
+It does not contain a vendor Input report. Interactive surface-key events are
+therefore a new firmware and host capability, not something already proven by
+the six-cell output experiment.

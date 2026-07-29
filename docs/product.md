@@ -7,51 +7,58 @@ firmware treats each key primarily as a source of host keycodes. RGB effects
 usually decorate the whole keyboard and do not represent live application
 state.
 
-Glove80 Control Surface adds an intentional second role: a temporary,
-plugin-driven control surface whose keys are both actions and displays.
+Glove80 Control Surface adds two optional roles:
 
-## Mental model
+- an ambient display that remains glanceable during normal typing; and
+- a momentary interaction surface entered through a deliberate trigger.
 
-The user configures **pages**. A page maps physical keys to **bindings**. A
-binding points to a plugin action and optionally a particular resource:
+These roles are independent. A key can show state without changing its normal
+typing behavior until interaction mode is held.
+
+## Minimal nouns
+
+- **Surface:** the available hardware cells. There is one surface initially.
+- **Binding:** assigns an integration target and optional action to one cell.
+- **Tile snapshot:** the target's current semantic state, label, availability,
+  and expiry.
+- **Presentation:** the accessible color/effect resolved by user policy and
+  integration defaults.
 
 ```json
 {
-  "page": "Development",
-  "cell": "LH_C2R1",
-  "plugin": "example.tasks",
+  "cell": 2,
+  "integration": "example.tasks",
+  "target": {"kind": "fixed", "id": "task-123"},
   "action": "open",
-  "resource": "task-slot-1"
+  "visibility": "always"
 }
 ```
 
-The plugin publishes state for that binding. State resolves to a visual:
+The integration emits semantic data, not final hardware priority:
 
 ```json
 {
-  "state": "working",
-  "visual": {
-    "color": "#168BFF",
-    "effect": "pulse",
-    "periodMs": 1200
-  }
+  "stateId": "working",
+  "label": "Build release",
+  "availability": "online",
+  "expiresAt": "2026-07-29T21:00:00Z"
 }
 ```
 
-Plugin visuals are defaults. Users may override them without modifying the
-plugin.
+The integration may suggest default presentations. The user's binding/theme
+owns overrides, priority, reduced motion, and brightness.
 
 ## Interaction
 
 1. The keyboard works normally.
-2. The user holds a configured control-layer trigger.
-3. Bound keys illuminate; unbound keys are dark or faint.
-4. A key press invokes its binding.
-5. The plugin updates the binding state.
+2. Ambient bindings may show state without intercepting keys.
+3. The user holds one configured, momentary interaction trigger.
+4. The desktop HUD labels the currently bound controls.
+5. A surface-key press invokes its binding instead of its normal key behavior.
 6. Releasing the trigger restores normal typing and prior lighting.
 
-A later version may support latching and multiple pages, but momentary
-activation is the safest initial interaction.
+Interaction mode is available only while a live desktop session exists.
+Latching and pages are deliberately excluded from the first version.
 
 ## Core states are not mandatory
 
@@ -63,16 +70,28 @@ The platform may provide reusable visual conventions such as:
 | working | blue, pulse |
 | completed or unread | green, solid |
 | needs input | amber, pulse |
-| error | red, double blink |
+| error | red, blink |
 
-Plugins remain free to define domain-specific states. The broker translates
-plugin states into the bounded rendering vocabulary supported by the device.
+Integrations remain free to define domain-specific states. The application
+translates them into the bounded rendering vocabulary supported by the device.
+
+## State lifetimes
+
+Three lifetimes must not be conflated:
+
+- the firmware session/scene lease, which always expires;
+- live integration state, which becomes stale at `expiresAt`; and
+- durable acknowledgement such as “completed but unread,” which is host data
+  and may survive an integration restart.
 
 ## Non-goals
 
 - Replacing the MoErgo layout editor.
+- Multiple pages in the first product.
+- Loading arbitrary third-party integration code in the first product.
 - Encoding application-specific concepts in firmware.
 - Executing arbitrary ZMK behaviors from desktop software.
-- Requiring a flash whenever a plugin binding changes.
+- Requiring a flash whenever an integration binding changes.
+- Rewriting every possible devicetree/C-preprocessor keymap automatically.
 - Streaming decorative video-rate RGB frames over Bluetooth.
 - Silently flashing or resetting a keyboard.

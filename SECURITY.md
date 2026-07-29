@@ -3,7 +3,7 @@
 ## Reporting
 
 Do not open a public issue for a vulnerability that could cause unintended
-keystrokes, expose plugin credentials, alter Bluetooth bonds, flash the wrong
+keystrokes, expose integration credentials, alter Bluetooth bonds, flash the wrong
 half, bypass brightness limits, or leave a keyboard unusable.
 
 Until a private reporting channel is published, contact the repository owner
@@ -14,8 +14,8 @@ through the private contact method on their GitHub profile.
 Security-sensitive surfaces include:
 
 - HID report validation;
-- local broker/editor authentication;
-- plugin isolation and credentials;
+- desktop application and future local IPC boundaries;
+- integration isolation and credentials;
 - firmware build provenance;
 - artifact side/board validation;
 - flashing and rollback; and

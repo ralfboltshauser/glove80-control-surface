@@ -19,8 +19,8 @@ Use concise imperative subjects, for example:
 
 ```text
 Specify atomic scene commits
-Add simulated six-cell surface
-Reject expired broker leases
+Add simulated 80-cell surface (retain a six-cell regression fixture)
+Reject expired desktop sessions
 ```
 
 ## Hardware work

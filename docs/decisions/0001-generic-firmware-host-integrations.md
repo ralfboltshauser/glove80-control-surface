@@ -1,4 +1,4 @@
-# ADR 0001: Generic firmware, host-side plugins
+# ADR 0001: Generic firmware, host-side integrations
 
 - Status: Accepted
 - Date: 2026-07-29
@@ -12,12 +12,12 @@ firmware would couple releases and require unnecessary flashing.
 ## Decision
 
 Firmware exposes generic cells, key events, rendering primitives, capabilities,
-and leases. Application integrations are desktop plugins. Key-to-plugin
-bindings are stored by the desktop broker.
+and sessions. Application integrations remain on the host. Key-to-integration
+bindings are stored by the desktop application.
 
 ## Consequences
 
-- New plugins and bindings do not require firmware changes.
-- A standalone broker is required for application state.
+- New integrations and bindings do not require firmware changes.
+- A host application is required for integration state.
 - Firmware remains useful to applications not known when it was built.
-- The broker must resolve plugin conflicts and stale state.
+- The application must resolve integration conflicts and stale state.

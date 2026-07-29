@@ -1,12 +1,11 @@
 # Glove80 Control Surface
 
-Bind Glove80 keys to desktop plugins, actions, live states, colors, and
+Bind Glove80 keys to desktop integrations, actions, live states, colors, and
 animations.
 
 Glove80 Control Surface is an open-source project for turning a MoErgo Glove80
 into a software control surface without giving up its normal keyboard layout.
-A dedicated control layer makes physical keys interactive: desktop plugins can
-attach actions to keys, report live state, and render per-key RGB feedback.
+Desktop integrations can attach live state and actions to physical keys.
 
 > [!IMPORTANT]
 > This repository is in the design and hardware-validation phase. It does not
@@ -15,61 +14,58 @@ attach actions to keys, report live state, and render per-key RGB feedback.
 
 ## The idea
 
-Outside the control layer, the keyboard behaves exactly as configured by the
-user. While the control layer is active:
+The product has two independent planes:
 
-- each bound key represents a plugin action or resource;
-- pressing a key invokes that action;
-- plugins update the key's color and animation as state changes;
-- unbound keys remain dark or visibly unassigned; and
-- a lost desktop connection automatically returns the keyboard to normal.
+- **Ambient display:** selected keys can show live status while the keyboard is
+  being used normally.
+- **Momentary interaction:** holding a deliberate trigger temporarily makes
+  those keys invoke their assigned actions.
+
+Releasing the trigger always restores the normal keymap. If the desktop session
+expires, temporary lighting clears and the interaction layer cannot capture new
+presses.
 
 Examples include agent tasks, calendar events, CI jobs, deployments,
 notifications, media, and system controls. None of those concepts belong in
-the firmware. They are host-side plugins using a generic control-surface
+the firmware. They are host-side integrations using a generic control-surface
 protocol.
 
 ## Product model
 
 ```text
 Glove80 firmware
-  ├── preserves the user's normal ZMK keymap
-  ├── exposes stable physical key/cell identifiers
-  ├── emits control-layer key events
-  ├── renders bounded per-cell colors and animations
-  └── fails open to normal typing when the host lease expires
+  ├── renders a leased scene across both 40-key halves
+  ├── runs solid, pulse, and blink locally
+  └── emits key down/up events in a momentary interaction layer
 
-Desktop broker
-  ├── owns the keyboard connection
-  ├── dispatches key gestures to plugins
-  ├── resolves state and visual priority
-  └── sends atomic scenes to the keyboard
-
-Desktop editor
-  └── maps pages and keys to plugin actions and visual states
-
-Plugins
-  └── define actions, resources, states, and suggested visuals
+One macOS application
+  ├── owns the USB HID session
+  ├── stores bindings for every available RGB cell
+  ├── runs built-in integrations
+  ├── resolves semantic state into accessible visuals
+  └── shows a labeled HUD while the interaction layer is held
 ```
 
 See [Product model](docs/product.md), [Architecture](docs/architecture.md),
-and [Plugin model](docs/plugin-model.md).
+and [Integration model](docs/integrations.md).
 
 ## Principles
 
 1. **Normal typing is inviolable.** A crash or disconnect must not strand the
    keyboard in a control mode.
-2. **Firmware is generic.** It understands cells, events, scenes, effects, and
-   leases—not calendars, task systems, or individual applications.
-3. **Bindings are dynamic.** Assigning a plugin to a key must not require
+2. **Display and interaction are separate.** Status may remain glanceable while
+   typing; only an explicit momentary trigger changes what a key press means.
+3. **Firmware is generic.** It understands cells, events, scenes, effects, and
+   sessions—not calendars, task systems, or individual applications.
+4. **Bindings are dynamic.** Assigning an integration to a key must not require
    reflashing firmware.
-4. **Animations run on the keyboard.** The host sends semantic effects instead
+5. **Animations run on the keyboard.** The host sends semantic effects instead
    of streaming RGB frames.
-5. **Import, do not replace.** Existing MoErgo JSON and ZMK keymap
-   configuration remains the source of truth for normal keyboard behavior.
-6. **Flashing is explicit and recoverable.** Builds are pinned and hashed;
-   left/right artifacts are checked; rollback artifacts are retained.
-7. **No arbitrary remote ZMK execution.** The host cannot invoke reset,
+6. **Integrate narrowly.** Existing MoErgo/ZMK configuration remains the source
+   of truth; arbitrary keymap source rewriting is not an initial promise.
+7. **Flashing is explicit.** Builds are pinned and hashed, and recovery uses a
+   previously saved or reproducibly rebuilt known-good artifact.
+8. **No arbitrary remote ZMK execution.** The host cannot invoke reset,
    bootloader, bond deletion, or unrestricted firmware behaviors.
 
 ## Initial target
@@ -77,13 +73,18 @@ and [Plugin model](docs/plugin-model.md).
 - MoErgo Glove80 with RGB
 - macOS
 - USB transport first
-- six fixed left-hand cells as the first hardware proof
-- a standalone desktop broker and editor
-- one reference plugin proving the generic plugin contract
+- all 80 RGB cells across both halves as the product target
+- one macOS process with local configuration
+- one built-in integration proving ambient state and one action
+- solid, pulse, and blink
+- a labeled on-screen HUD during momentary interaction
 
-The architecture models both 40-key halves from the start. Full left-side
-coverage, right-side rendering, Bluetooth, and cross-platform support follow
-after the smallest path is reliable.
+Implementation expands in measured steps: preserve the existing six-cell
+experiment as a regression fixture, validate the complete 40-cell left frame,
+then synchronize and validate the 40-cell right frame. A release for the
+both-RGB Glove80 is not complete until all 80 cells are addressable. Bluetooth,
+a public plugin SDK, and cross-platform support remain separate evidence-gated
+expansions.
 
 ## Repository status
 
@@ -92,6 +93,8 @@ not an application skeleton. Technology choices should follow validated
 requirements rather than quietly becoming requirements themselves.
 
 - [Roadmap](docs/roadmap.md)
+- [Future-user needs](docs/user-needs.md)
+- [Open design questions](docs/open-questions.md)
 - [Firmware boundary](docs/firmware.md)
 - [Safety model](docs/safety.md)
 - [ZMK command inventory](docs/research/zmk-command-inventory.md)

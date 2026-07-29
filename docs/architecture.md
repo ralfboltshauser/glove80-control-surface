@@ -4,52 +4,60 @@
 
 ```mermaid
 flowchart LR
-    Plugins["Plugin workers"] --> Broker["Background broker"]
-    Editor["Desktop editor"] <-->|"Local authenticated RPC"| Broker
-    Builder["Pinned firmware builder"] <--> Editor
-    Broker <-->|"Vendor HID"| Central["Glove80 left / central"]
-    Central <-->|"ZMK split transport"| Peripheral["Glove80 right / peripheral"]
+    Integrations["Built-in integrations"] --> App["One macOS application"]
+    Config["Local bindings + preferences"] <--> App
+    App <-->|"Vendor HID over USB"| Central["Glove80 left / central"]
+    Central <-->|"Versioned scene snapshot + input"| Peripheral["Glove80 right / peripheral"]
+    Build["Explicit build/install CLI"] -.-> Central
+    Build -.-> Peripheral
 ```
 
 ### Firmware
 
-The firmware extension exposes an **indicator surface**:
+The firmware extension exposes a capability-described **control surface**:
 
-- stable cell topology and capabilities;
-- an explicit control mode;
+- a fixed capability/status feature report;
+- one leased, atomically committed scene over every available RGB cell;
 - key-down and key-up events while that mode is active;
-- atomic cell scenes;
-- firmware-local animations;
+- solid, pulse, and blink;
 - bounded brightness and power behavior; and
-- lease-based ownership with fail-open recovery.
+- a momentary control layer gated by a live host session.
 
-### Broker
+### macOS application
 
-The broker is the only process allowed to open the device:
+One process initially owns all runtime responsibilities:
 
-- maintains the lease;
-- dispatches gestures to plugins;
-- subscribes to plugin state;
-- resolves competing visuals;
-- validates every scene against device capabilities; and
-- continues running when the editor window is closed.
+- opens the HID device;
+- runs built-in integrations;
+- stores local bindings for every available cell;
+- resolves semantic state into accessible presentations;
+- refreshes the scene lease;
+- dispatches control-layer events; and
+- presents a small configuration UI and interaction HUD.
 
-### Editor
+These remain internal module boundaries, not separate processes or a public
+SDK. A daemon, authenticated local RPC, worker isolation, and a separate
+Electron renderer are added only if measured lifecycle or security needs
+justify them.
 
-The editor imports MoErgo layout metadata, displays the physical layout, and
-edits host-side pages and bindings. Firmware compilation and flashing are
-separate, explicit workflows.
+### Integrations
 
-### Plugins
+The first integrations are compiled into the application. They emit semantic
+state snapshots and receive safe actions. Loading third-party code is deferred
+until several different integrations have proven a stable contract and a
+threat model exists.
 
-Plugins never receive raw HID handles or flashing authority. They expose
-actions and observable state through a versioned SDK.
+### Build and install
+
+Firmware build/install is an explicit developer workflow, not part of the
+runtime application. The first seam is a narrow generated include/overlay or a
+documented keymap addition. Arbitrary keymap source rewriting is not assumed.
 
 ## Transport
 
-The first transport is a vendor-defined HID collection over USB. It is compact,
-self-describing, supported by macOS without a custom kernel driver, and already
-proven on the target hardware.
+The first transport is a vendor-defined HID collection over USB. Output and
+feature reports have been proven for six cells; the required input report is
+not yet proven.
 
 Bluetooth HID support is secondary. Report-descriptor caching, battery impact,
 and live output-write behavior must be tested independently.
@@ -57,19 +65,39 @@ and live output-write behavior must be tested independently.
 ## Split keyboard
 
 The left half is the host-facing central. Right-side key positions already
-reach the central through ZMK. Right-side lighting should receive compact
-semantic scene updates and render animations locally; it should not receive a
-continuous raw framebuffer.
+reach the central through ZMK. The central owns the authoritative committed
+scene, renders its local cells, and synchronizes the right-side subset to the
+peripheral.
+
+Right-side synchronization uses versioned complete snapshots, coalesces queued
+updates to the newest generation, acknowledges the applied generation, and
+resends the latest snapshot after reconnect. An incompatible or absent
+peripheral disables only right-side rendering; it must not compromise typing
+or the left side. Each half independently enforces its electrical budget.
 
 ## Configuration ownership
 
 | Data | Owner |
 | --- | --- |
-| Normal typing layout and ZMK behaviors | Imported keymap / firmware |
+| Normal typing layout and ZMK behaviors | User keymap / firmware build |
 | Device cell topology and safety limits | Firmware |
-| Plugin installation | Desktop application |
-| Pages and key bindings | Desktop broker |
-| Plugin state | Plugin |
-| Resolved active scene | Broker and firmware lease |
+| Cell bindings and preferences | macOS application |
+| Integration state | Built-in integration |
+| Resolved active scene | Application and firmware lease |
 
 This separation lets bindings change instantly without flash writes.
+
+## Evidence gates
+
+Core 80-cell milestones still have safety gates; optional expansions have
+product evidence gates:
+
+| Expansion | Evidence required first |
+| --- | --- |
+| Public plugin SDK | At least three materially different built-in integrations |
+| Separate daemon/UI | Proven lifecycle, privilege, or multi-client requirement |
+| Core: full 40-cell left side | Measured total-current budget and chunked payload |
+| Core: full 40-cell right side | Reconnect/resync, version mismatch, and independent-power tests |
+| Bluetooth | Live input/output proof, cache behavior, and power measurement |
+| Pages | Evidence that one 80-cell surface cannot remain understandable without them |
+| Integrated firmware builder | A deterministic, validated keymap integration seam |
