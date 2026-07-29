@@ -18,35 +18,49 @@ typing behavior until interaction mode is held.
 ## Minimal nouns
 
 - **Surface:** the available hardware cells. There is one surface initially.
-- **Binding:** assigns an integration target and optional action to one cell.
-- **Tile snapshot:** the target's current semantic state, label, availability,
-  and expiry.
+- **Binding:** assigns an integration-owned source selector and optional action
+  to one cell.
+- **Resolved tile:** the source's current optional resource, semantic state, label,
+  action availability, revision, and expiry.
 - **Presentation:** the accessible color/effect resolved by user policy and
   integration defaults.
 
 ```json
 {
   "cell": 2,
-  "integration": "example.tasks",
-  "target": {"kind": "fixed", "id": "task-123"},
-  "action": "open",
+  "integration": "codex",
+  "source": {"kind": "fixedTask", "threadId": "task-123"},
+  "action": "openTask",
   "visibility": "always"
 }
 ```
 
-The integration emits semantic data, not final hardware priority:
+The integration resolves that selector and emits semantic data, not final
+hardware priority:
 
 ```json
 {
   "stateId": "working",
+  "resourceId": "task-123",
   "label": "Build release",
   "availability": "online",
+  "actionAvailability": {"enabled": true},
+  "revision": 42,
   "expiresAt": "2026-07-29T21:00:00Z"
 }
 ```
 
 The integration may suggest default presentations. The user's binding/theme
 owns overrides, priority, reduced motion, and brightness.
+
+The source selector is intentionally opaque to the application core. A Codex
+binding can select one stable task; a Calendar binding can select the next
+eligible event from a set of calendars. The resolved resource is frozen for an
+interaction epoch and revalidated before action dispatch. It cannot silently
+change between the user seeing a key and pressing it.
+
+The resource may be null, for example when a Calendar binding has no eligible
+meeting. In that state its action is disabled.
 
 The canonical end-to-end binding and interaction journey is specified in
 [User experience](user-experience.md).
@@ -73,7 +87,7 @@ The platform may provide reusable visual conventions such as:
 | working | blue, pulse |
 | completed or unread | green, solid |
 | needs input | amber, pulse |
-| error | red, blink |
+| error | red, solid |
 
 Integrations remain free to define domain-specific states. The application
 translates them into the bounded rendering vocabulary supported by the device.

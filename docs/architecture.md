@@ -104,7 +104,7 @@ product evidence gates:
 
 | Expansion | Evidence required first |
 | --- | --- |
-| Public plugin SDK | At least three materially different built-in integrations |
+| Public plugin SDK | Codex and Calendar shipped, then a concrete unresolved contract need |
 | Separate daemon/UI | Proven lifecycle, privilege, or multi-client requirement |
 | Core: full 40-cell left side | Measured total-current budget and chunked payload |
 | Core: full 40-cell right side | Reconnect/resync, version mismatch, and independent-power tests |

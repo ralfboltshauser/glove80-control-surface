@@ -73,10 +73,11 @@ never rewrites or flashes that imported configuration.
 | Fixed action with state | One binding with an action and state source |
 | Passive indicator | Binding with no action |
 | Command-only key | Binding with no state source |
-| Fixed resource | Integration configuration stored in the binding |
+| Fixed resource | Integration-owned fixed-resource source selector |
 | Offline/stale state | `availability` and `expiresAt` in a snapshot |
 | User visual preference | Binding-owned presentation override |
-| Dynamic agents/meetings/jobs | Region provider yielding stable ordered tiles |
+| Next meeting | One dynamic selector resolving to one frozen runtime tile |
+| Dynamic task/event region | Later region provider yielding stable ordered tiles |
 | Multiple pages/profiles | Deferred until one surface is understandable |
 | Multiple computers | Active-endpoint ownership plus visible conflict state |
 

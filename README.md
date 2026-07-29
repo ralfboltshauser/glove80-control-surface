@@ -25,10 +25,15 @@ Releasing the trigger always restores the normal keymap. If the desktop session
 expires, temporary lighting clears and the interaction layer cannot capture new
 presses.
 
-Examples include agent tasks, calendar events, CI jobs, deployments,
-notifications, media, and system controls. None of those concepts belong in
-the firmware. They are host-side integrations using a generic control-surface
-protocol.
+The first product has two integrations:
+
+- **Codex:** a key represents one Codex task and shows whether it is idle,
+  working, completed with an unread update, waiting for input, or failed.
+- **Calendar:** a key represents the next qualifying meeting from calendars
+  selected by the user and becomes more prominent as the meeting approaches.
+
+None of those concepts belong in the firmware. They are host-side integrations
+using a generic control-surface protocol.
 
 ## Product model
 
@@ -49,7 +54,9 @@ One macOS application
 See [Product model](docs/product.md), [Architecture](docs/architecture.md),
 [User experience](docs/user-experience.md), and
 [Desktop application plan](docs/application.md). The internal semantic boundary
-is detailed in [Integration model](docs/integrations.md).
+is detailed in [Integration model](docs/integrations.md). The two initial
+experiences are specified in [Codex integration UX](docs/integration-codex.md)
+and [Calendar integration UX](docs/integration-calendar.md).
 
 ## Principles
 
@@ -77,7 +84,7 @@ is detailed in [Integration model](docs/integrations.md).
 - USB transport first
 - all 80 RGB cells across both halves as the product target
 - one macOS process with local configuration
-- one built-in integration proving ambient state and one action
+- two built-in integrations: Codex and Calendar
 - solid, pulse, and blink
 - a labeled on-screen HUD during momentary interaction
 

@@ -30,14 +30,17 @@ implementation commitments.
 
 ## Before choosing the desktop stack
 
-1. Which real built-in integration best proves both ambient state and a safe
-   action without dominating the product architecture?
-2. Can one ordinary macOS application reliably own HID, run while its window is
+1. Can one ordinary macOS application reliably own HID, run while its window is
    closed, and present the HUD, or is a helper process actually required?
-3. What local configuration format supports semantic snapshots and accessible
+2. What local configuration format supports resolved tiles and accessible
    presentation overrides without pretending to be a public integration API?
-4. Does a labeled runtime HUD actually make 80 physical bindings discoverable,
+3. Does a labeled runtime HUD actually make 80 physical bindings discoverable,
    or is another view needed?
+4. Can a standalone app-server client observe live turns owned by the Codex
+   desktop app, or only threads run through its own server session?
+5. Which EventKit fields and Calendar automation mappings survive for each
+   configured provider, and which support Join, Show event, or only Open
+   Calendar?
 
 ## Before a generally useful release
 
@@ -52,4 +55,5 @@ implementation commitments.
    is attached to more than one computer?
 7. Which local-process threats matter when same-user software can open the
    vendor HID endpoint directly?
-8. How should stable dynamic slots move, age out, and freeze during interaction?
+8. After the single-key `nextMeeting` selector is proven, is a multi-key dynamic
+   region still useful enough to justify stable allocation and hysteresis?

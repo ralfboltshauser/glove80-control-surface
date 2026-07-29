@@ -19,7 +19,7 @@ credentials, or application-specific commands.
 
 ## Initial boundaries
 
-The first application talks to four kinds of dependency:
+The first application talks to three kinds of dependency:
 
 ```mermaid
 flowchart LR
@@ -28,8 +28,7 @@ flowchart LR
     Core <-->|"SurfaceDevice"| Keyboard["Glove80"]
     Core <-->|"IntegrationAdapter"| Integrations["Built-in integrations"]
     Core <-->|"PersistencePort"| Files["Atomic local configuration"]
-    Core <-->|"CredentialPort"| Keychain["macOS Keychain"]
-    Integrations --> Services["Codex and later services"]
+    Integrations --> Services["Codex app-server + macOS Calendar"]
 ```
 
 Firmware building and flashing are an explicit separate workflow. The running
@@ -55,14 +54,15 @@ App
 ├── Integrations
 │   ├── IntegrationAdapter
 │   ├── IntegrationRegistry
-│   └── CodexAdapter
+│   ├── CodexAdapter
+│   └── CalendarAdapter
 ├── Persistence
-│   ├── ConfigurationFile
-│   └── KeychainCredentials
+│   └── ConfigurationFile
 └── UI
     ├── KeyboardEditor
     ├── BindingInspector
     ├── IntegrationBrowser
+    ├── IntegrationSourceEditors
     ├── InteractionHUD
     └── MenuBarStatus
 ```
@@ -90,7 +90,7 @@ The minimum durable nouns are:
 ```text
 CellID
 IntegrationID
-TargetReference
+SourceConfiguration
 Binding
 PresentationOverride
 Acknowledgement
@@ -103,8 +103,8 @@ A fixed binding is:
 {
   "cell": 12,
   "integration": "codex",
-  "target": {"kind": "agent", "id": "agent-123"},
-  "action": "open",
+  "source": {"kind": "fixedTask", "threadId": "thread-123"},
+  "action": "openTask",
   "visibility": "always",
   "presentationOverride": null
 }
@@ -113,7 +113,7 @@ A fixed binding is:
 Runtime state is separate and never written on every poll:
 
 ```text
-IntegrationSnapshot
+ResolvedTile
 DeviceSnapshot
 ResolvedCellPresentation
 SceneGeneration
@@ -121,14 +121,19 @@ InteractionEpoch
 ActionInvocation
 ```
 
-`TargetReference` contains integration ID, account ID, target kind, and an
-opaque target ID. The core never interprets a Codex agent ID. A removed or
-unavailable target makes its binding stale; it is never silently remapped.
+`SourceConfiguration` is an opaque, integration-owned selector. The core never
+interprets a Codex thread ID or Calendar query. A removed fixed task makes its
+binding stale; it is never silently remapped. A dynamic selector such as
+`nextMeeting` deliberately resolves to a current resource.
 
-Bindings, preferences, acknowledgement state, and dynamic-slot allocation are
-stored in one versioned JSON document using atomic replacement. Credentials
-live in Keychain. A database is added only if measured query or migration needs
-outgrow that document.
+`ResolvedTile` contains the currently represented resource, semantic state,
+availability, action availability, revision, observation time, and expiry.
+Resolution is runtime state and is not rewritten into the durable binding.
+
+Bindings, preferences, acknowledgement state, and later dynamic-slot
+allocation are stored in one versioned JSON document using atomic replacement.
+Neither v0 integration stores a service credential. A database or credential
+port is added only if a measured need appears.
 
 ## Adapter contracts
 
@@ -167,26 +172,36 @@ The first adapters are trusted, compiled-in implementations:
 descriptor
 connect(configuration)
 disconnect()
-listTargets(query, cursor) → target summaries
-observe(target references) → semantic snapshots
+validate(source configuration) → validated source configuration
+observe(binding IDs + source configurations) → async stream of resolved tiles
 perform(action request) → action result
 ```
 
 The contract uses:
 
 ```text
-TargetReference
-TargetSummary
-SemanticSnapshot
+SourceConfiguration
+ResolvedResource
+ResolvedTile
 ActionDescriptor
 ActionRequest
 ActionResult
 IntegrationAvailability
 ```
 
-`TargetReference` includes the integration account plus an opaque target ID.
-Snapshots include a revision, observation time, and expiry so stale/out-of-order
-updates can be rejected.
+The runtime adapter receives binding IDs plus opaque source configurations, not
+cells, actions, visibility, or presentation. Its async stream may combine
+provider events and bounded refresh timers.
+
+A separate built-in `IntegrationSourceEditor` in the UI edits that
+integration's source configuration. A Codex task picker and Calendar-set
+selector are materially different UI. The application provides the common
+inspector shell; it does not invent a generic form schema or make the runtime
+adapter own views.
+
+Resolved tiles include a revision, observation time, and expiry so stale or
+out-of-order updates can be rejected. The resolved resource may be null, as
+with a Calendar binding that currently has no eligible meeting.
 
 An adapter may suggest accessible default presentations for semantic state IDs,
 but it cannot set cells, scene priority, global brightness, or HID data.
@@ -195,9 +210,15 @@ Every action request has an invocation ID. Adapters must return accepted,
 completed, cancelled, or failed without silently retrying a non-idempotent
 action.
 
-Adapters receive only the narrow services they need, such as scoped
-credentials, redacted logging, clock, and URL opening. They do not receive the
-application store or `SurfaceDevice`.
+Action availability has an independent `enabled` value and explanation. It is
+not inferred from color or semantic state. During interaction, the coordinator
+passes the frozen resource identity and observed revision to the adapter. The
+adapter requires the same resource identity and current action validity before
+acting; an unrelated revision change alone does not reject a safe open action.
+
+Adapters receive only the narrow services they need, such as redacted logging,
+clock, and URL opening. They do not receive the application store or
+`SurfaceDevice`.
 
 ### UI commands
 
@@ -239,10 +260,10 @@ pickers, macros, or firmware build controls in the runtime workspace.
 │ Integrations │                                         │ Selected: LH 1  │
 │              │          physical Glove80 canvas        │                 │
 │ ● Codex      │                                         │ Codex           │
-│ ○ Calendar   │      [left 40]        [right 40]        │ Agent 123       │
-│ ○ CI         │                                         │ Open task       │
+│ ○ Calendar   │      [left 40]        [right 40]        │ Task: Release   │
+│              │                                         │ Open task       │
 │              │   key legends + live RGB previews       │                 │
-│ + Add        │                                         │ Working: pulse  │
+│              │                                         │ Working: blue   │
 │              │                          − 100% +  Fit   │ Done: green     │
 ├──────────────┴─────────────────────────────────────────┴─────────────────┤
 │ Scene 42 applied · Left 42 · Right 42 · batteries 96% / 91%             │
@@ -277,9 +298,9 @@ changing the single-cell binding model.
 
 ### Left integration rail
 
-The left rail shows configured integrations and their health. Selecting one
-filters the canvas and target picker. “Add integration” opens a focused setup
-flow. It does not resemble a plugin marketplace initially.
+The left rail shows only the two v0 integrations, Codex and Calendar, plus
+their health. Selecting one filters the canvas. Enabling an integration opens
+a focused setup flow. It does not resemble a plugin marketplace.
 
 ### Right binding inspector
 
@@ -287,16 +308,34 @@ The inspector follows a short top-to-bottom decision sequence:
 
 ```text
 Integration
-Target
-Optional action
+Represents
+When pressed
 Visibility
-State presentation
+Appearance
 ```
 
-Target selection is searchable and paginated. The default presentation is
-shown before overrides. Advanced palette/effect controls remain collapsed.
-Saving is immediate and local, with Undo for binding edits. A deleted target
-remains visibly stale in the inspector until the user chooses a replacement.
+`Represents` embeds a small integration-specific editor:
+
+- Codex selects one task/thread.
+- Calendar selects `next meeting`, one or more calendars, and eligibility
+  options.
+
+The default presentation is shown before overrides. Advanced palette/effect
+controls remain collapsed. Saving is immediate and local, with Undo for
+binding edits. A deleted fixed task remains visibly stale until the user
+chooses a replacement.
+
+Configuration has three visible scopes:
+
+| Scope | Examples |
+| --- | --- |
+| Application | brightness, pause, palette, reduced motion, no flash, privacy, launch at login |
+| Integration | Codex connection; Calendar permission and available calendars |
+| Key binding | source selector, one action, visibility, optional appearance override |
+
+The interaction trigger is not a runtime setting in v0. It is installed in the
+generated ZMK integration seam. The app displays and teaches the installed
+trigger but does not claim it can move it without rebuilding firmware.
 
 ### Top and bottom status
 
@@ -314,7 +353,7 @@ details without placing firmware terminology in the main workflow.
 ### Interaction HUD
 
 Holding the physical trigger presents a compact, non-activating overlay near
-the current display edge. It shows only bound keys, their target labels, live
+the current display edge. It shows only bound keys, their resource labels, live
 state, and action. It must not steal keyboard focus.
 
 The HUD is a hypothesis to user-test. The physical LEDs remain useful without
@@ -325,8 +364,8 @@ it, and critical needs-input/error state also has an accessible textual path.
 ### Integration state to keyboard
 
 ```text
-adapter emits semantic snapshot
-→ coordinator updates runtime target state
+adapter emits resolved tile
+→ coordinator updates runtime binding state
 → scene composer resolves binding + user presentation
 → short coalescing window
 → surface device accepts a new desired scene
@@ -335,19 +374,20 @@ adapter emits semantic snapshot
 ```
 
 The scene composer is a pure function. It receives capabilities, bindings,
-snapshots, preferences, and current interaction allocation and returns one
+resolved tiles, preferences, and current frozen resolutions and returns one
 complete desired scene. The adapter handles byte encoding.
 
 ### Physical action to integration
 
 ```text
 keyboard emits MODE_ENTER(epoch, generation)
-→ coordinator freezes dynamic allocation
+→ coordinator freezes each resource identity and observed revision
 → keyboard emits KEY_DOWN(epoch, cell)
 → action dispatcher resolves frozen binding
+→ adapter revalidates frozen resource identity and current action availability
 → adapter performs action with invocation ID
-→ result updates HUD and semantic state
-→ MODE_EXIT releases frozen allocation
+→ result updates HUD and action feedback
+→ MODE_EXIT releases frozen resolution
 ```
 
 Gaps in device event sequence cancel active gestures. They never trigger
@@ -371,7 +411,6 @@ For the macOS-first product, start with:
 - a small `IOHIDManager` surface-device adapter;
 - Swift structured concurrency with one coordinator actor;
 - a versioned JSON configuration document;
-- Keychain Services for credentials; and
 - XCTest plus deterministic fake adapters.
 
 This is a working recommendation, not a cross-platform commitment. Before
@@ -396,7 +435,7 @@ compatibility is not assumed.
 - Binding and configuration migrations.
 - Semantic-state-to-presentation resolution.
 - Complete-scene composition for 0, 6, 40, and 80 cells.
-- Dynamic allocation stability and freeze by interaction epoch.
+- Resolved-resource stability and freeze by interaction epoch.
 - Action dispatch deduplication.
 - Session/reconnect reducer transitions.
 
@@ -404,8 +443,9 @@ compatibility is not assumed.
 
 - One fake keyboard runs the same capability, acknowledgement, timeout,
   reconnect, and event-overflow scenarios as hardware.
-- Every integration adapter passes shared target, state expiry, cancellation,
-  credential-redaction, and action-result tests.
+- Every integration adapter passes shared source validation, observation,
+  resource-identity freeze, revision ordering, state expiry, cancellation,
+  diagnostic-redaction, and action-result tests.
 - HID golden vectors are shared with firmware tests.
 
 ### UI
@@ -429,6 +469,8 @@ compatibility is not assumed.
 - Specify core domain types and desired-versus-applied ownership.
 - Prove vendor HID access, background renewal, and the keyboard canvas in
   bounded spikes.
+- Prove the scope of live Codex observation across app-server and the desktop
+  app; do not build the task-state picker around unobservable threads.
 - Create the coordinator, surface-device/integration ports, and fakes.
 
 Exit: a signed development build opens the current vendor collection, and the
@@ -442,8 +484,9 @@ fakes exercise session expiry and stale integration state.
 - Add optional read-only MoErgo JSON legend import.
 - Run entirely against a simulated keyboard and simulated Codex adapter.
 
-Exit: select left `1`, bind fake Agent 123, watch working pulse become completed
-green, pause/resume, and see both simulated halves acknowledge a scene.
+Exit: select left `1`, bind a fake Codex task, watch working pulse become
+completed green, pause/resume, and see both simulated halves acknowledge a
+scene.
 
 ### A2 — first real vertical slice
 
@@ -451,17 +494,18 @@ green, pause/resume, and see both simulated halves acknowledge a scene.
   output reports.
 - Show exact compatibility and session status.
 - Preserve the existing timeout and clear behavior.
-- Implement the real Codex adapter for target discovery and state observation;
-  keep physical action dispatch disabled.
+- Implement the real Codex adapter only for task sources whose live state was
+  proven; keep physical action dispatch disabled.
 
-Exit: bind left `1` to a real Codex target and observe
+Exit: bind left `1` to a real Codex task and observe
 working → completed/stale on one of the six proven cells without firmware or
 keymap mutation.
 
 ### A3 — physical interaction vertical slice
 
 - Consume mode/key events with sequence and epoch validation.
-- Freeze binding allocation during interaction.
+- Freeze the resolved resource identity and observed revision during
+  interaction.
 - Prototype the HUD and one safe action without stealing focus.
 - Test crash, expiry, held keys, duplicate events, sleep/wake, and unplug.
 
@@ -480,14 +524,20 @@ scenes on both halves without redesign.
 
 ### A5 — product hardening
 
-- Harden menu-bar lifecycle, pause/clear, Keychain, notifications,
+- Harden menu-bar lifecycle, pause/clear, notifications,
   configuration migration, and secret-free import/export.
-- Add one command-only and one dynamic/aggregate built-in integration.
-- Add a stable dynamic region provider.
-- Review the common adapter contract using actual differences.
+- Implement Calendar `nextMeeting` using the Mac's configured calendars and
+  read-only product behavior.
+- Inspect actual EventKit records and Calendar automation for configured
+  providers; capability-gate Join and exact-event navigation.
+- Revalidate frozen Calendar actions and exercise expiry, redaction, conflicts,
+  visible cancellation, timezone changes, and meeting-link capabilities.
+- Review the common adapter contract against Codex's fixed task and Calendar's
+  time-driven selector.
 
-Exit: three built-in integration shapes fit without device/UI special cases.
-Only then decide whether a public out-of-process plugin SDK is warranted.
+Exit: Codex and Calendar fit the same device and inspector shell without a
+generic UI schema or integration-specific firmware. Only then revisit dynamic
+regions or a public out-of-process plugin SDK.
 
 ## Explicitly deferred
 
@@ -506,6 +556,8 @@ Only then decide whether a public out-of-process plugin SDK is warranted.
 
 - [MoErgo Layout Editor](https://my.moergo.com/glove80/)
 - [MoErgo Layout Editor workspace and page structure](https://docs.moergo.com/layout-editor-guide/layout-editing/)
+- [OpenAI Codex Micro](https://openai.com/supply/co-lab/work-louder/)
+- [OpenAI Codex Micro guide](https://learn.chatgpt.com/docs/features/codex-micro)
 
 The project follows the editor's spatial interaction model, not its branding,
 code, or firmware-layout responsibilities.

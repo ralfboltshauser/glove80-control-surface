@@ -15,7 +15,10 @@ firmware before testing the product UX.
   six-cell protocol.
 - Prove a normally code-signed, non-sandboxed Swift process can open the vendor HID
   collection and maintain background renewal through sleep/wake.
-- Build deterministic fake surface-device and task-integration adapters.
+- Build deterministic fake surface-device, Codex, and Calendar adapters.
+- Prove whether a standalone Codex client can observe live turns owned by the
+  desktop app; otherwise scope Codex to app-server-owned threads before UI
+  implementation.
 
 Exit criterion: the protocol decoder passes reviewed vectors, every
 expiry/press transition has an expected outcome, and the application can run
@@ -28,11 +31,12 @@ its lifecycle entirely against fakes.
 - Add select, inspect, bind, preview, Undo, zoom/fit, status, and accessible
   non-spatial navigation.
 - Add optional read-only MoErgo JSON import for accurate base-layer legends.
-- Simulate desired/applied divergence, right-half lag, stale targets, pause,
+- Simulate desired/applied divergence, right-half lag, stale resources, pause,
   reconnect, and action results.
 
-Exit criterion: select left `1`, bind fake Agent 123, watch working pulse become
-completed green, and see both simulated halves acknowledge the generation.
+Exit criterion: select left `1`, bind a fake Codex task, watch working pulse
+become completed green, and see both simulated halves acknowledge the
+generation.
 
 ## Phase 2 — six-cell ambient vertical slice
 
@@ -40,11 +44,11 @@ completed green, and see both simulated halves acknowledge the generation.
 - Fix compositor priority and current-state power computation.
 - Validate exact cells, expiry, ordinary RGB coexistence, Magic diagnostics,
   battery behavior, and malformed reports.
-- Implement the real built-in Codex adapter for target discovery and semantic
-  state observation; leave physical action dispatch disabled.
+- Implement the real built-in Codex adapter only for task sources whose live
+  observation was proven; leave physical action dispatch disabled.
 - Show desired, applied, stale, incompatible, and paused states honestly.
 
-Exit criterion: bind left `1` to a real Codex target and observe
+Exit criterion: bind left `1` to a real Codex task and observe
 working → completed/stale on one of the six proven cells without changing its
 typing behavior or reflashing.
 
@@ -85,19 +89,22 @@ worst-case static and animated scenes.
 Exit criterion: all 80 cells are addressable, reconnect to the latest scene,
 and fail without affecting typing or the other half.
 
-## Phase 6 — product hardening and adapter evidence
+## Phase 6 — Calendar and product hardening
 
-- Harden menu-bar lifecycle, pause/clear, Keychain, notifications,
+- Harden menu-bar lifecycle, pause/clear, notifications,
   configuration migration, and secret-free import/export.
-- Implement one command-only and one dynamic/aggregate built-in integration.
-- Add a stable dynamic region provider and freeze it during interaction.
+- Implement Calendar `nextMeeting` with selected macOS calendars, temporal
+  state, expiry, redaction, and one capability-gated Open meeting action.
+- Inspect actual EventKit records and Calendar automation on configured
+  providers; capability-gate Join and exact-event navigation.
+- Freeze and revalidate the resolved event identity during interaction.
 - Complete keyboard-only, VoiceOver, reduced-motion, no-flash, high-contrast,
   and increased-text testing.
-- Review the common integration contract against all three real shapes.
+- Review the common integration contract against Codex's fixed resource and
+  Calendar's time-driven selector.
 
-Exit criterion: fixed-resource, command-only, and dynamic/aggregate needs fit
-without device or UI special cases. Only then decide whether a public plugin
-SDK is justified.
+Exit criterion: both integrations fit without device special cases or a generic
+UI schema. Only then decide which abstraction, if any, is justified next.
 
 ## Phase 7 — safe install and compatibility
 
@@ -115,8 +122,8 @@ manual source editing and can return to a known-good build.
 ## Evidence-gated expansions
 
 - Bluetooth after live bidirectional HID, caching, lease, and power validation.
-- Public out-of-process plugin SDK after three built-in integrations stabilize
-  the semantic contract and a threat model exists.
+- Public out-of-process plugin SDK after Codex and Calendar ship, a concrete
+  third-party need exposes a missing contract, and a threat model exists.
 - Separate daemon/UI processes only if lifecycle or isolation demands them.
 - Multiple keyboards and active-host takeover policy.
 - Pages only if one 80-cell surface cannot remain discoverable.
