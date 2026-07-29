@@ -47,7 +47,8 @@ One macOS application
 ```
 
 See [Product model](docs/product.md), [Architecture](docs/architecture.md),
-and [Integration model](docs/integrations.md).
+[User experience](docs/user-experience.md), and
+[Integration model](docs/integrations.md).
 
 ## Principles
 
@@ -93,6 +94,7 @@ not an application skeleton. Technology choices should follow validated
 requirements rather than quietly becoming requirements themselves.
 
 - [Roadmap](docs/roadmap.md)
+- [End-to-end user experience](docs/user-experience.md)
 - [Future-user needs](docs/user-needs.md)
 - [Open design questions](docs/open-questions.md)
 - [Firmware boundary](docs/firmware.md)

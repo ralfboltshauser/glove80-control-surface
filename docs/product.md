@@ -48,6 +48,9 @@ The integration emits semantic data, not final hardware priority:
 The integration may suggest default presentations. The user's binding/theme
 owns overrides, priority, reduced motion, and brightness.
 
+The canonical end-to-end binding and interaction journey is specified in
+[User experience](user-experience.md).
+
 ## Interaction
 
 1. The keyboard works normally.
