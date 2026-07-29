@@ -46,6 +46,7 @@ App
 │   ├── AppCoordinator
 │   ├── AppState
 │   ├── BindingStore
+│   ├── SlotAllocator
 │   ├── SceneComposer
 │   └── ActionDispatcher
 ├── Device
@@ -97,13 +98,13 @@ Acknowledgement
 AppPreferences
 ```
 
-A fixed binding is:
+A Codex board binding is:
 
 ```json
 {
-  "cell": 12,
+  "cells": [12, 13, 14, 15, 52, 53],
   "integration": "codex",
-  "source": {"kind": "fixedTask", "threadId": "thread-123"},
+  "source": {"kind": "taskBoard", "strategy": "priority"},
   "action": "openTask",
   "visibility": "always",
   "presentationOverride": null
@@ -113,7 +114,9 @@ A fixed binding is:
 Runtime state is separate and never written on every poll:
 
 ```text
+ResolvedCollection
 ResolvedTile
+SlotAllocation
 DeviceSnapshot
 ResolvedCellPresentation
 SceneGeneration
@@ -122,16 +125,17 @@ ActionInvocation
 ```
 
 `SourceConfiguration` is an opaque, integration-owned selector. The core never
-interprets a Codex thread ID or Calendar query. A removed fixed task makes its
-binding stale; it is never silently remapped. A dynamic selector such as
-`nextMeeting` deliberately resolves to a current resource.
+interprets Codex candidate rules or a Calendar query. `taskBoard` deliberately
+resolves to several resources; `nextMeeting` resolves to zero or one.
 
-`ResolvedTile` contains the currently represented resource, semantic state,
-availability, action availability, revision, observation time, and expiry.
-Resolution is runtime state and is not rewritten into the durable binding.
+`ResolvedCollection` contains availability, observation time, expiry, and zero
+or more tiles. Each tile contains a resource identity, semantic state, action
+availability, retention hint, and revision. `SlotAllocation` is the host-owned
+stable mapping from tiles to the binding's ordered cells. Runtime resolution
+and allocation are not rewritten into the durable binding.
 
-Bindings, preferences, acknowledgement state, and later dynamic-slot
-allocation are stored in one versioned JSON document using atomic replacement.
+Bindings, preferences, acknowledgement state, and sticky allocation hints are
+stored in one versioned JSON document using atomic replacement.
 Neither v0 integration stores a service credential. A database or credential
 port is added only if a measured need appears.
 
@@ -173,7 +177,7 @@ descriptor
 connect(configuration)
 disconnect()
 validate(source configuration) → validated source configuration
-observe(binding IDs + source configurations) → async stream of resolved tiles
+observe(binding IDs + source configurations) → async stream of resolved collections
 perform(action request) → action result
 ```
 
@@ -182,7 +186,9 @@ The contract uses:
 ```text
 SourceConfiguration
 ResolvedResource
+ResolvedCollection
 ResolvedTile
+Retention
 ActionDescriptor
 ActionRequest
 ActionResult
@@ -194,14 +200,14 @@ cells, actions, visibility, or presentation. Its async stream may combine
 provider events and bounded refresh timers.
 
 A separate built-in `IntegrationSourceEditor` in the UI edits that
-integration's source configuration. A Codex task picker and Calendar-set
-selector are materially different UI. The application provides the common
-inspector shell; it does not invent a generic form schema or make the runtime
-adapter own views.
+integration's source configuration. A Codex task-board region/source editor
+and Calendar-set selector are materially different UI. The application
+provides the common inspector shell; it does not invent a generic form schema
+or make the runtime adapter own views.
 
-Resolved tiles include a revision, observation time, and expiry so stale or
-out-of-order updates can be rejected. The resolved resource may be null, as
-with a Calendar binding that currently has no eligible meeting.
+Resolved collections include observation time and expiry; tiles include a
+revision so stale or out-of-order updates can be rejected. An empty collection
+leaves its cells unallocated and actionless.
 
 An adapter may suggest accessible default presentations for semantic state IDs,
 but it cannot set cells, scene priority, global brightness, or HID data.
@@ -225,7 +231,7 @@ clock, and URL opening. They do not receive the application store or
 The UI sends user intentions to `AppCoordinator`:
 
 ```text
-selectCell
+selectCells
 setBinding
 removeBinding
 previewCell
@@ -278,6 +284,8 @@ pickers, macros, or firmware build controls in the runtime workspace.
 - Preview the resolved live RGB color/effect on each cell.
 - Use an outline for selection so selection is not conveyed by color alone.
 - Click selects one key and opens its inspector.
+- Shift-click adds or removes keys from an ordered region; the order is visible
+  and editable in the inspector.
 - Double-click focuses the first editable inspector control.
 - Selecting a cell in software sends a temporary identify preview.
 - Pressing a cell while the physical interaction trigger is held selects the
@@ -292,9 +300,9 @@ legends. Imported legends are timestamped, replaceable display metadata keyed
 by stable cell ID. The application never rewrites, uploads, builds, or flashes
 that configuration.
 
-Multi-selection, lasso, drag-to-copy, pages, and arbitrary key rearrangement are
-deferred. Dynamic regions later add deliberate multi-cell selection without
-changing the single-cell binding model.
+Lasso, drag-to-copy, pages, and arbitrary key rearrangement are deferred.
+Ordered multi-selection is required for the Codex task board; a one-cell
+selection remains the Calendar flow.
 
 ### Left integration rail
 
@@ -316,14 +324,15 @@ Appearance
 
 `Represents` embeds a small integration-specific editor:
 
-- Codex selects one task/thread.
+- Codex selects a Priority, Recent, or Pinned task board and an ordered region
+  of any size; fixed task is advanced.
 - Calendar selects `next meeting`, one or more calendars, and eligibility
   options.
 
 The default presentation is shown before overrides. Advanced palette/effect
 controls remain collapsed. Saving is immediate and local, with Undo for
-binding edits. A deleted fixed task remains visibly stale until the user
-chooses a replacement.
+binding edits. A deleted advanced fixed task remains visibly stale until the
+user chooses a replacement.
 
 Configuration has three visible scopes:
 
@@ -331,7 +340,7 @@ Configuration has three visible scopes:
 | --- | --- |
 | Application | brightness, pause, palette, reduced motion, no flash, privacy, launch at login |
 | Integration | Codex connection; Calendar permission and available calendars |
-| Key binding | source selector, one action, visibility, optional appearance override |
+| Surface binding | ordered cells, source selector, one action, visibility, optional appearance override |
 
 The interaction trigger is not a runtime setting in v0. It is installed in the
 generated ZMK integration seam. The app displays and teaches the installed
@@ -364,8 +373,9 @@ it, and critical needs-input/error state also has an accessible textual path.
 ### Integration state to keyboard
 
 ```text
-adapter emits resolved tile
+adapter emits resolved collection
 → coordinator updates runtime binding state
+→ slot allocator preserves or updates resource-to-cell assignments
 → scene composer resolves binding + user presentation
 → short coalescing window
 → surface device accepts a new desired scene
@@ -373,15 +383,16 @@ adapter emits resolved tile
 → central and right acknowledgements update applied state
 ```
 
-The scene composer is a pure function. It receives capabilities, bindings,
-resolved tiles, preferences, and current frozen resolutions and returns one
-complete desired scene. The adapter handles byte encoding.
+The slot allocator and scene composer are pure functions. They receive
+capabilities, bindings, resolved collections, previous allocations,
+preferences, and current frozen resolutions and return stable allocations plus
+one complete desired scene. The device adapter handles byte encoding.
 
 ### Physical action to integration
 
 ```text
 keyboard emits MODE_ENTER(epoch, generation)
-→ coordinator freezes each resource identity and observed revision
+→ coordinator freezes complete allocation, identities, and observed revisions
 → keyboard emits KEY_DOWN(epoch, cell)
 → action dispatcher resolves frozen binding
 → adapter revalidates frozen resource identity and current action availability
@@ -435,7 +446,8 @@ compatibility is not assumed.
 - Binding and configuration migrations.
 - Semantic-state-to-presentation resolution.
 - Complete-scene composition for 0, 6, 40, and 80 cells.
-- Resolved-resource stability and freeze by interaction epoch.
+- Sticky collection allocation, overflow, eviction, and freeze by interaction
+  epoch.
 - Action dispatch deduplication.
 - Session/reconnect reducer transitions.
 
@@ -479,14 +491,14 @@ fakes exercise session expiry and stale integration state.
 ### A1 — visual editor with fakes
 
 - Render the complete keyboard using the device catalog.
-- Implement selection, inspector shell, zoom/fit, status bars, and accessibility
-  list.
+- Implement single and ordered multi-selection, inspector shell, zoom/fit,
+  status bars, and accessibility list.
 - Add optional read-only MoErgo JSON legend import.
 - Run entirely against a simulated keyboard and simulated Codex adapter.
 
-Exit: select left `1`, bind a fake Codex task, watch working pulse become
-completed green, pause/resume, and see both simulated halves acknowledge a
-scene.
+Exit: select a six-cell cross-half region, bind a fake Priority task board,
+watch sticky tasks move through working and completed states without
+reshuffling, pause/resume, and see both simulated halves acknowledge a scene.
 
 ### A2 — first real vertical slice
 
@@ -497,9 +509,9 @@ scene.
 - Implement the real Codex adapter only for task sources whose live state was
   proven; keep physical action dispatch disabled.
 
-Exit: bind left `1` to a real Codex task and observe
-working → completed/stale on one of the six proven cells without firmware or
-keymap mutation.
+Exit: bind the proven cells to a real Priority task board and observe tasks
+enter, remain sticky, complete, and age into overflow or eviction without
+firmware or keymap mutation.
 
 ### A3 — physical interaction vertical slice
 
@@ -532,8 +544,8 @@ scenes on both halves without redesign.
   providers; capability-gate Join and exact-event navigation.
 - Revalidate frozen Calendar actions and exercise expiry, redaction, conflicts,
   visible cancellation, timezone changes, and meeting-link capabilities.
-- Review the common adapter contract against Codex's fixed task and Calendar's
-  time-driven selector.
+- Review the common adapter contract against Codex's dynamic task collection
+  and Calendar's time-driven singleton.
 
 Exit: Codex and Calendar fit the same device and inspector shell without a
 generic UI schema or integration-specific firmware. Only then revisit dynamic

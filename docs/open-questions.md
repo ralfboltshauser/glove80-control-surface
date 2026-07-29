@@ -32,8 +32,9 @@ implementation commitments.
 
 1. Can one ordinary macOS application reliably own HID, run while its window is
    closed, and present the HUD, or is a helper process actually required?
-2. What local configuration format supports resolved tiles and accessible
-   presentation overrides without pretending to be a public integration API?
+2. What local configuration format supports resolved collections, sticky
+   allocation, and accessible presentation overrides without pretending to be
+   a public integration API?
 3. Does a labeled runtime HUD actually make 80 physical bindings discoverable,
    or is another view needed?
 4. Can a standalone app-server client observe live turns owned by the Codex
@@ -55,5 +56,5 @@ implementation commitments.
    is attached to more than one computer?
 7. Which local-process threats matter when same-user software can open the
    vendor HID endpoint directly?
-8. After the single-key `nextMeeting` selector is proven, is a multi-key dynamic
-   region still useful enough to justify stable allocation and hysteresis?
+8. Under real high-churn Codex use, which overflow and eviction thresholds keep
+   the task board self-maintaining without making tasks feel hidden or random?

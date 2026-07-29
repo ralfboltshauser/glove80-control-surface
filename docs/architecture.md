@@ -91,7 +91,7 @@ or the left side. Each half independently enforces its electrical budget.
 | --- | --- |
 | Normal typing layout and ZMK behaviors | User keymap / firmware build |
 | Device cell topology and safety limits | Firmware |
-| Cell bindings and preferences | macOS application |
+| Ordered-cell bindings, allocation, and preferences | macOS application |
 | Integration state | Built-in integration |
 | Resolved active scene | Application and firmware lease |
 

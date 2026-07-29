@@ -27,8 +27,9 @@ presses.
 
 The first product has two integrations:
 
-- **Codex:** a key represents one Codex task and shows whether it is idle,
-  working, completed with an unread update, waiting for input, or failed.
+- **Codex:** the user chooses a task-board region once; current tasks are
+  allocated stably across its keys and show idle, working, completed/unread,
+  needs-input, or failed state.
 - **Calendar:** a key represents the next qualifying meeting from calendars
   selected by the user and becomes more prominent as the meeting approaches.
 

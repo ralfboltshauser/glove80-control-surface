@@ -13,12 +13,17 @@ an internal boundary, not a public plugin SDK commitment.
 ```json
 {
   "bindingId": "binding-1",
-  "resource": {"kind": "task", "id": "task-123"},
-  "stateId": "working",
-  "label": "Build release",
   "availability": "online",
-  "actionAvailability": {"enabled": true},
-  "revision": 42,
+  "tiles": [
+    {
+      "resource": {"kind": "task", "id": "task-123"},
+      "stateId": "working",
+      "label": "Build release",
+      "actionAvailability": {"enabled": true},
+      "retention": "protected",
+      "revision": 42
+    }
+  ],
   "expiresAt": "2026-07-29T21:00:00Z"
 }
 ```
@@ -30,17 +35,18 @@ A compiled `IntegrationDescriptor` may declare:
 - semantic state IDs;
 - suggested accessible presentations;
 - required permissions and data scope; and
-- whether it can later provide a dynamic collection.
+- collection and retention policy.
 
 Runtime state contains no firmware cell, effect, or priority. The binding and
 user preferences resolve it into a presentation supported by the device.
 
 ## Initial limits
 
-- Exactly two built-in source kinds:
-  - Codex `fixedTask`;
+- Two built-in integrations with three source kinds:
+  - Codex `taskBoard`;
+  - Codex advanced `fixedTask`;
   - Calendar `nextMeeting`.
-- At most one safe tap action.
+- At most one safe tap action per resolved tile.
 - Status-only and action-only bindings are allowed.
 - No arbitrary third-party code loading.
 - Neither v0 integration stores a service credential.
@@ -56,14 +62,14 @@ The common durable shape is:
 ```json
 {
   "bindingId": "binding-1",
-  "cell": 12,
+  "cells": [12],
   "integration": "calendar",
   "source": {
     "kind": "nextMeeting",
     "calendarIds": ["work"],
     "lookAheadMinutes": 120
   },
-  "action": "smartOpen",
+  "action": "openMeeting",
   "visibility": "always",
   "presentationOverride": null
 }
@@ -73,23 +79,28 @@ The common durable shape is:
 core owns the envelope but does not pretend that every source is a fixed
 resource.
 
-At runtime the adapter produces:
+At runtime the adapter produces a collection:
 
 ```json
 {
   "bindingId": "binding-1",
-  "resource": {"kind": "event", "id": "event-9"},
-  "stateId": "startingSoon",
   "availability": "online",
-  "actionAvailability": {"enabled": true},
-  "revision": 42,
+  "tiles": [
+    {
+      "resource": {"kind": "event", "id": "event-9"},
+      "stateId": "startingSoon",
+      "actionAvailability": {"enabled": true},
+      "retention": "normal",
+      "revision": 42
+    }
+  ],
   "observedAt": "2026-07-29T20:00:00Z",
   "expiresAt": "2026-07-29T20:01:00Z"
 }
 ```
 
-`resource` is nullable. A Calendar binding with no eligible meeting emits an
-empty semantic state, disabled action availability, and `resource: null`.
+A Calendar binding with no eligible meeting or an empty Codex board emits
+`tiles: []`. Unallocated cells have no action.
 
 The resolved resource identity and observed revision freeze at `MODE_ENTER`. At
 `KEY_DOWN`, the integration requires that same resource identity and
@@ -102,23 +113,30 @@ Action availability is independent from semantic status. Action success or
 failure appears in the HUD and application and does not temporarily overwrite
 the resource's ambient state.
 
-## Dynamic collections
+## Stable collection allocation
 
-Current tasks, upcoming meetings, and active jobs cannot be represented
-honestly as permanent `slot-1` resources. A **region provider** yields an
-ordered list of tiles for several cells.
+A source yields an ordered collection of tiles for its binding's ordered cells.
+Calendar produces zero or one. A Codex task board produces many.
 
-The host allocates stable slots with hysteresis so ordinary polling does not
-make resources jump between keys. It must freeze cell-to-resource mapping while
-interaction mode is active. This is a later extension: Calendar's single
-`nextMeeting` selector proves runtime resolution without requiring multi-cell
-allocation in v0.
+The integration may suggest candidate order and `protected` or `normal`
+retention, but it never chooses physical cells. The host:
+
+1. preserves an existing resource-to-cell assignment while it remains
+   eligible;
+2. fills empty cells in binding order;
+3. replaces only eligible normal-retention tiles when a higher-priority
+   candidate needs space;
+4. exposes overflow rather than continuously reshuffling; and
+5. freezes the complete allocation during interaction.
+
+This allocation is required for the Codex v0 rather than deferred platform
+machinery.
 
 ## Public SDK evidence gate
 
-There is no public plugin SDK in v0. Codex and Calendar first exercise a fixed
-resource, a time-driven selector, live state, expiry, acknowledgement, and safe
-actions. The internal boundary is reviewed after both ship. A third integration
-is added only if it answers a concrete unresolved contract question; plugin
-isolation, packaging, permissions, versioning, and signing are not designed
-speculatively.
+There is no public plugin SDK in v0. Codex and Calendar first exercise a
+dynamic collection, a time-driven singleton, live state, expiry,
+acknowledgement, retention, and safe actions. The internal boundary is reviewed
+after both ship. A third integration is added only if it answers a concrete
+unresolved contract question; plugin isolation, packaging, permissions,
+versioning, and signing are not designed speculatively.

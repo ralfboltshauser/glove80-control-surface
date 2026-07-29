@@ -28,15 +28,15 @@ its lifecycle entirely against fakes.
 
 - Build the one-process native app and single logical state owner.
 - Render both physical halves from the versioned device catalog.
-- Add select, inspect, bind, preview, Undo, zoom/fit, status, and accessible
-  non-spatial navigation.
+- Add single and ordered multi-select, inspect, bind, preview, Undo, zoom/fit,
+  status, and accessible non-spatial navigation.
 - Add optional read-only MoErgo JSON import for accurate base-layer legends.
 - Simulate desired/applied divergence, right-half lag, stale resources, pause,
   reconnect, and action results.
 
-Exit criterion: select left `1`, bind a fake Codex task, watch working pulse
-become completed green, and see both simulated halves acknowledge the
-generation.
+Exit criterion: bind a six-cell region to a fake Priority task board, verify
+sticky allocation, protection, eviction, and overflow, and see both simulated
+halves acknowledge the generation.
 
 ## Phase 2 — six-cell ambient vertical slice
 
@@ -48,9 +48,9 @@ generation.
   observation was proven; leave physical action dispatch disabled.
 - Show desired, applied, stale, incompatible, and paused states honestly.
 
-Exit criterion: bind left `1` to a real Codex task and observe
-working → completed/stale on one of the six proven cells without changing its
-typing behavior or reflashing.
+Exit criterion: bind the six proven cells to a real Codex task board and
+observe tasks enter, remain sticky, complete, and age into overflow or eviction
+without changing typing behavior or reflashing.
 
 ## Phase 3 — momentary interaction vertical slice
 
@@ -100,8 +100,8 @@ and fail without affecting typing or the other half.
 - Freeze and revalidate the resolved event identity during interaction.
 - Complete keyboard-only, VoiceOver, reduced-motion, no-flash, high-contrast,
   and increased-text testing.
-- Review the common integration contract against Codex's fixed resource and
-  Calendar's time-driven selector.
+- Review the common integration contract against Codex's dynamic task
+  collection and Calendar's time-driven singleton.
 
 Exit criterion: both integrations fit without device special cases or a generic
 UI schema. Only then decide which abstraction, if any, is justified next.

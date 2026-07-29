@@ -2,22 +2,21 @@
 
 ## Core promise
 
-A physical Glove80 key can represent live desktop state without losing its
-normal typing behavior.
+A physical Glove80 region can represent changing desktop resources without
+losing normal typing behavior.
 
-For example, a user can select the left-half `1` key in the application and
-bind it to a specific Codex task:
+For example, a user selects several keys once and makes them a Priority Codex
+task board:
 
 ```text
-physical left "1" key
-    → firmware cell ID
-    → host binding
-    → Codex integration
-    → selected task
+ordered physical cells
+    → one host binding
+    → Codex Priority source
+    → stable task-to-cell allocation
 ```
 
-While the user types normally, the key continues to type `1`. Its LED
-simultaneously presents the selected task's state. In one possible theme:
+While the user types normally, every key keeps its original meaning. Each LED
+simultaneously presents the currently allocated task's state:
 
 | Task state | Key presentation |
 | --- | --- |
@@ -36,16 +35,15 @@ brightness, reduced-motion, and no-flash preferences.
 
 1. The user opens the keyboard editor.
 2. The editor shows both 40-key halves using the firmware's topology identity.
-3. The user selects the physical left `1` key.
+3. The user selects an ordered region on either or both halves.
 4. The user selects the Codex integration.
-5. The user chooses a particular task and an optional safe action, such as
-   opening its task.
-6. The application saves the binding locally and previews the selected key.
-7. The next complete scene sent to the keyboard includes that cell's resolved
-   presentation.
+5. The default Priority task source automatically fills the region.
+6. The application saves the binding locally and previews current allocation.
+7. The next complete scene includes every allocated cell's presentation.
 
-Changing the task, action, color, effect, or visibility does not require a
-firmware flash. The keyboard stores no Codex identifiers or credentials.
+New tasks do not require settings changes or firmware flashes. Changing the
+region, source strategy, action, appearance, or visibility also remains
+host-only. The keyboard stores no Codex identifiers or credentials.
 
 ## Glance without changing typing
 
@@ -57,9 +55,10 @@ normal mode:
     left "1" LED   → shows task state
 ```
 
-The application continuously observes the task and sends a new complete scene
-when its semantic state changes. The keyboard renders solid, pulse, or blink
-locally. It does not receive continuous animation frames.
+The application continuously observes the collection, preserves sticky slot
+allocation, and sends a new complete scene when state or allocation changes.
+The keyboard renders solid, pulse, or blink locally. It does not receive
+continuous animation frames.
 
 If the application disappears or its session expires, the temporary scene
 clears and normal typing remains available.
@@ -82,31 +81,30 @@ it labels bound keys, current resources, states, and actions. Its effectiveness
 must be user-tested.
 
 The firmware reports only the cell ID and interaction epoch. The application
-uses the frozen resolved resource and revision for that epoch to find the task
-or event and dispatch its action. Dynamic resources cannot move between cells during an
-interaction.
+uses the frozen allocation, resource identity, and observed revision for that
+epoch to find the task or event and dispatch its action. Dynamic resources
+cannot move between cells during an interaction.
 
 The keyboard provides immediate local press feedback. The application then
 updates the HUD with accepted, completed, cancelled, or failed action feedback
 without overwriting the resource's semantic LED state. Destructive actions
 require a future explicit confirmation design and are excluded initially.
 
-## Fixed and resolved mappings
+## Collection and singleton mappings
 
-A fixed Codex binding always represents one selected task until the user
-changes it. A Calendar binding represents a selector—next eligible meeting
-from selected calendars—and resolves to a specific event at runtime.
+A Codex task-board binding resolves an ordered candidate collection into a
+sticky allocation across several cells. A Calendar binding resolves next
+eligible meeting from selected calendars into zero or one tile on one cell.
+An advanced fixed Codex binding remains available for exceptional long-lived
+tasks.
 
 The resolved resource identity and observed revision freeze as soon as
 interaction begins. The adapter requires that same identity and current action
 validity before acting, so a changing calendar cannot retarget the key under
 the user's finger. A harmless revision update alone does not cancel the action.
 
-A later dynamic region may assign several keys to currently relevant tasks or
-events. It would use stable allocation and hysteresis, but is not part of v0.
-
 Both models use the same firmware interface. They differ only in how the host
-application resolves the source selector for a cell.
+application resolves and allocates the source collection.
 
 ## Responsibility boundary
 
@@ -117,7 +115,7 @@ application resolves the source selector for a cell.
 | Per-cell RGB rendering and both-half synchronization | Firmware |
 | Codex connection and task discovery | Codex integration |
 | Calendar permission and event resolution | Calendar integration |
-| Cell-to-source binding | Application |
+| Ordered cells and stable slot allocation | Application |
 | Semantic-state-to-presentation mapping | Application and user preferences |
 | Action dispatch and durable unread state | Application/integration |
 | Normal typing layout | Existing user keymap |
@@ -135,6 +133,12 @@ This experience is complete only when:
 
 - selecting a key in the editor reliably identifies the same physical LED;
 - every available cell on both supported RGB halves can be bound;
+- a Codex board may use any ordered subset across both halves;
+- new tasks fill empty cells without settings changes;
+- state changes do not cause continuous task reshuffling;
+- active and needs-input tasks remain protected;
+- error and completed/unread tasks remain protected until acknowledged;
+- overflow is visible when protected tasks exceed the region;
 - ambient state never changes the key's normal meaning;
 - entering interaction requires a deliberate physical gesture;
 - release, application crash, session expiry, and disconnect restore ordinary

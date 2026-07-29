@@ -10,8 +10,8 @@ All notable changes to this project will be documented here.
 - Set all 80 cells across both halves as the product target while retaining six
   USB cells as the first regression fixture.
 - Added future-user requirements and explicit evidence gates for expansion.
-- Documented the complete key-to-integration UX using a Codex task binding as
-  the concrete example.
+- Documented the complete key-to-integration UX using an initial Codex task
+  example.
 - Planned the native desktop application, MoErgo-inspired visual editor,
   adapter contracts, state flows, tests, and phased delivery.
 - Defined the Codex and Calendar v0 user experiences from current primary
@@ -19,3 +19,5 @@ All notable changes to this project will be documented here.
 - Generalized bindings from fixed targets to integration-owned source
   selectors so one key can safely represent a fixed Codex task or a changing
   next meeting.
+- Replaced manual per-chat Codex setup with a self-maintaining, sticky task
+  board whose region may use any ordered subset of the 80 cells.

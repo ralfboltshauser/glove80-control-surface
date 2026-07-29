@@ -19,17 +19,21 @@ typing behavior until interaction mode is held.
 
 - **Surface:** the available hardware cells. There is one surface initially.
 - **Binding:** assigns an integration-owned source selector and optional action
-  to one cell.
-- **Resolved tile:** the source's current optional resource, semantic state, label,
-  action availability, revision, and expiry.
+  to an ordered set of one or more cells.
+- **Resolved collection:** zero or more current resource tiles emitted by the
+  source.
+- **Resolved tile:** one resource's semantic state, label, action availability,
+  revision, and expiry.
+- **Slot allocation:** the host's stable mapping from resolved tiles to a
+  binding's ordered cells.
 - **Presentation:** the accessible color/effect resolved by user policy and
   integration defaults.
 
 ```json
 {
-  "cell": 2,
+  "cells": [2, 3, 4, 5, 42, 43],
   "integration": "codex",
-  "source": {"kind": "fixedTask", "threadId": "task-123"},
+  "source": {"kind": "taskBoard", "strategy": "priority"},
   "action": "openTask",
   "visibility": "always"
 }
@@ -54,13 +58,13 @@ The integration may suggest default presentations. The user's binding/theme
 owns overrides, priority, reduced motion, and brightness.
 
 The source selector is intentionally opaque to the application core. A Codex
-binding can select one stable task; a Calendar binding can select the next
-eligible event from a set of calendars. The resolved resource is frozen for an
-interaction epoch and revalidated before action dispatch. It cannot silently
+task board produces several tasks for several cells; a Calendar binding
+produces at most the next eligible event for one cell. Allocation and resolved
+resource identity freeze for an interaction epoch. A resource cannot silently
 change between the user seeing a key and pressing it.
 
-The resource may be null, for example when a Calendar binding has no eligible
-meeting. In that state its action is disabled.
+The collection may be empty, for example when Calendar has no eligible meeting
+or a Codex board has no eligible task. Empty cells have no action.
 
 The canonical end-to-end binding and interaction journey is specified in
 [User experience](user-experience.md).
