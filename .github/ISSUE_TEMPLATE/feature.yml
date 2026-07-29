@@ -1,0 +1,30 @@
+name: Feature proposal
+description: Propose an outcome or architecture change.
+title: "proposal: "
+labels: ["proposal"]
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: User outcome
+      description: What becomes possible for the user?
+    validations:
+      required: true
+  - type: textarea
+    id: smallest
+    attributes:
+      label: Smallest useful version
+      description: What is the smallest implementation that validates the outcome?
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Safety and failure behavior
+      description: How does it fail open and preserve normal typing?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

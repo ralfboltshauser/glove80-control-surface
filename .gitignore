@@ -1,0 +1,14 @@
+.DS_Store
+.idea/
+.vscode/
+node_modules/
+dist/
+build/
+.env
+.env.*
+!.env.example
+*.log
+*.uf2
+*.hex
+*.bin
+*.elf
