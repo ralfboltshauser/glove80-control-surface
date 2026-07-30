@@ -2,6 +2,7 @@ import {
   ArrowDown,
   ArrowUp,
   Check,
+  Columns2,
   Layers3,
   Play,
   RotateCcw,
@@ -9,7 +10,11 @@ import {
   Trash2,
 } from "lucide-react";
 
-import { keyName } from "../domain/keyboardGeometry";
+import {
+  allKeys,
+  keyLegend,
+  keyName,
+} from "../domain/keyboardGeometry";
 import type {
   BoardView,
   SemanticState,
@@ -31,6 +36,7 @@ interface BoardInspectorProps {
   onPreviewAction: (cellId: number) => void;
   onRemoveBoard: () => void;
   onRemoveTask: (cellId: number) => void;
+  onReplaceDraft: (cells: number[]) => void;
   onSave: () => void;
   onSelectDraftCell: (cellId: number) => void;
   onSetTaskState: (cellId: number, state: SemanticState) => void;
@@ -43,7 +49,7 @@ const stateLabels: Record<SemanticState, string> = {
   completedUnread: "Completed · unread",
   needsInput: "Needs input",
   failed: "Failed",
-  stale: "Stale",
+  stale: "Activity unknown",
 };
 
 export function BoardInspector(props: BoardInspectorProps) {
@@ -87,9 +93,12 @@ export function BoardInspector(props: BoardInspectorProps) {
       <section className="inspector-section">
         <p className="eyebrow">Selected key</p>
         <div className="selected-key-row">
-          <kbd>{keyName(selectedCell)}</kbd>
-          <span>
-            {slot ? `Slot ${slot.slot + 1}` : "Outside task board"}
+          <kbd>{keyLegend(selectedCell)}</kbd>
+          <span className="selected-key-row__detail">
+            <strong>{keyName(selectedCell)}</strong>
+            <small>
+              {slot ? `Slot ${slot.slot + 1}` : "Outside task board"}
+            </small>
           </span>
         </div>
       </section>
@@ -104,7 +113,6 @@ export function BoardInspector(props: BoardInspectorProps) {
               </span>
             </div>
             <p title={tile.context}>{tile.context}</p>
-            <small>Observed revision {tile.revision}</small>
             {tile.retention === "protected" && (
               <div className="retention-note">
                 <ShieldCheck size={15} />
@@ -215,8 +223,8 @@ export function BoardInspector(props: BoardInspectorProps) {
         <>
           <p className="inspector-footnote">
             External discovery follows changing tasks, but another Codex
-            process’s exact live state is unavailable. “Stale” means unknown,
-            not idle.
+            process’s exact live state is unavailable. “Activity unknown” is
+            deliberately not treated as idle.
           </p>
           <details className="source-diagnostics">
             <summary>Codex connection details</summary>
@@ -270,6 +278,7 @@ function RegionEditor({
   pending,
   onCancelEditing,
   onMoveDraft,
+  onReplaceDraft,
   onSave,
   onSelectDraftCell,
   onUndo,
@@ -293,10 +302,62 @@ function RegionEditor({
         </div>
       </div>
       <section className="inspector-section">
+        <p className="eyebrow">Quick selection</p>
+        <div className="selection-presets" aria-label="Quick key selection">
+          <button
+            type="button"
+            data-current={draftCells.length === 80}
+            onClick={() => onReplaceDraft(allKeys.map((key) => key.id))}
+          >
+            <Columns2 size={15} /> All 80
+          </button>
+          <button
+            type="button"
+            data-current={
+              draftCells.length === 40 &&
+              draftCells.every((cell) => cell < 40)
+            }
+            onClick={() =>
+              onReplaceDraft(
+                allKeys.filter((key) => key.half === "left").map((key) => key.id),
+              )
+            }
+          >
+            Left 40
+          </button>
+          <button
+            type="button"
+            data-current={
+              draftCells.length === 40 &&
+              draftCells.every((cell) => cell >= 40)
+            }
+            onClick={() =>
+              onReplaceDraft(
+                allKeys.filter((key) => key.half === "right").map((key) => key.id),
+              )
+            }
+          >
+            Right 40
+          </button>
+          <button
+            type="button"
+            disabled={draftCells.length === 0}
+            onClick={() => onReplaceDraft([])}
+          >
+            Clear
+          </button>
+        </div>
+      </section>
+      <section className="inspector-section">
         <p className="eyebrow">Selected position</p>
         <div className="selected-key-row">
-          <kbd>{keyName(selectedCell)}</kbd>
-          <span>{order >= 0 ? `Slot ${order + 1}` : "Not selected"}</span>
+          <kbd>{keyLegend(selectedCell)}</kbd>
+          <span className="selected-key-row__detail">
+            <strong>{keyName(selectedCell)}</strong>
+            <small>
+              {order >= 0 ? `Slot ${order + 1}` : "Not selected"}
+            </small>
+          </span>
         </div>
         <div className="reorder-controls">
           <button
@@ -330,7 +391,8 @@ function RegionEditor({
                   onClick={() => onSelectDraftCell(cellId)}
                 >
                   <span>{index + 1}</span>
-                  <strong>{keyName(cellId)}</strong>
+                  <strong>{keyLegend(cellId)}</strong>
+                  <small>{keyName(cellId)}</small>
                 </button>
               </li>
             ))}

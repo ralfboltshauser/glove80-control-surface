@@ -21,14 +21,6 @@ interface AppHeaderProps {
   onToggleControlLayer: () => void;
 }
 
-const syncLabels = {
-  idle: "Ready to configure",
-  applied: "Both halves synchronized",
-  partial: "Partially synchronized",
-  paused: "Surface paused",
-  disconnected: "Keyboard disconnected",
-} as const;
-
 export function AppHeader({
   boardConfigured,
   controlLayerActive,
@@ -49,17 +41,10 @@ export function AppHeader({
         </div>
         <div>
           <h1>Glove80 Control Surface</h1>
-          <p>Dynamic controls, ordinary typing</p>
+          <p>Software state on physical keys</p>
         </div>
       </div>
       <div className="header-actions">
-        <div
-          className="connection-summary"
-          data-status={device.syncStatus}
-        >
-          <span className="connection-summary__dot" aria-hidden="true" />
-          <span>{pending ? "Updating…" : syncLabels[device.syncStatus]}</span>
-        </div>
         <button
           ref={controlLayerButtonRef}
           className="button button--primary"
@@ -69,6 +54,8 @@ export function AppHeader({
           title={
             editing
               ? "Save or cancel region changes before previewing the saved board"
+              : !device.snapshot.connected
+                ? "Connect the left half over USB to preview physical controls"
               : undefined
           }
           onClick={onToggleControlLayer}

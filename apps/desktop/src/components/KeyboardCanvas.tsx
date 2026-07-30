@@ -10,6 +10,7 @@ import {
 import {
   allKeys,
   keyboardGeometry,
+  layoutName,
   type KeyGeometry,
 } from "../domain/keyboardGeometry";
 import type { BoardView } from "../domain/types";
@@ -135,25 +136,31 @@ export function KeyboardCanvas({
     <section className="keyboard-workspace" aria-labelledby="surface-title">
       <div className="workspace-heading">
         <div>
-          <p className="eyebrow">Surface</p>
-          <h2 id="surface-title">Glove80 position map</h2>
+          <p className="eyebrow">80-key surface</p>
+          <h2 id="surface-title">Keyboard map</h2>
           <p className="workspace-heading__description">
-            80-cell physical position catalog across both halves · not to scale.
+            {layoutName} · all RGB positions across both halves.
           </p>
         </div>
-        <div className="legend" aria-label="Task state legend">
-          <span><i className="state-dot state-dot--idle" />○ Idle</span>
-          <span><i className="state-dot state-dot--working" />● Working</span>
-          <span><i className="state-dot state-dot--needsInput" />! Input</span>
-          <span><i className="state-dot state-dot--completedUnread" />✓ Done</span>
-          <span><i className="state-dot state-dot--failed" />× Failed</span>
-          <span><i className="state-dot state-dot--stale" />? Stale</span>
+        <div className="workspace-heading__meta">
+          <span className="tag">
+            {(editing ? draftCells : board?.cells ?? []).length}/80 assigned
+          </span>
+          <div className="legend" aria-label="Task state legend">
+            <span><i className="state-dot state-dot--idle" />○ Idle</span>
+            <span><i className="state-dot state-dot--working" />● Working</span>
+            <span><i className="state-dot state-dot--needsInput" />! Input</span>
+            <span><i className="state-dot state-dot--completedUnread" />✓ Done</span>
+            <span><i className="state-dot state-dot--failed" />× Failed</span>
+            <span><i className="state-dot state-dot--stale" />? Unknown</span>
+          </div>
         </div>
       </div>
       <div
         ref={viewportRef}
         className="keyboard-viewport"
         data-editing={editing}
+        data-fit={fitEnabled}
         data-paused={paused}
       >
         <div
@@ -173,7 +180,7 @@ export function KeyboardCanvas({
                 key={half}
               >
                 <span className="half-label">
-                  {half === "left" ? "Left · central" : "Right · peripheral"}
+                  {half === "left" ? "Left half · 40 keys" : "Right half · 40 keys"}
                 </span>
                 {keyboardGeometry[half].map((geometry) => {
                   const slot = slotsByCell.get(geometry.id);

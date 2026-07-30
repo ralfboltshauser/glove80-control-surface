@@ -39,11 +39,15 @@ The first product has two integrations:
 None of those concepts belong in the firmware. They are host-side integrations
 using a generic control-surface protocol.
 
-![Packaged Electron task board showing real local Codex tasks](docs/screenshots/milestone-2/live-codex-packaged-dark.png)
+![Packaged Electron task board showing real local Codex tasks across the Glove80](docs/screenshots/milestone-4/live-codex-disconnected-dark.png)
 
-The screenshot predates the production HID composition. Current startup uses
-the real USB capability handshake; the renderer never receives a native HID
-handle.
+This is the signed packaged application using the real Codex app-server on this
+Mac. The keyboard was intentionally disconnected during this capture, so the
+UI keeps all 80 positions editable while honestly withholding USB controls.
+Native HID remains isolated in the Electron main process; the renderer never
+receives a device handle.
+
+![All 80 physical keys selected in fill order](docs/screenshots/milestone-4/all-80-editor-dark.png)
 
 ## Product model
 
@@ -123,6 +127,7 @@ requires explicit flash approval and the grouped physical acceptance matrix.
 - [Future-user needs](docs/user-needs.md)
 - [Open design questions](docs/open-questions.md)
 - [Firmware boundary](docs/firmware.md)
+- [Milestone 4 desktop integration review](docs/reviews/milestone-4-desktop-integration.md)
 - [Alpha5 pre-flash gate](docs/reviews/milestone-4-preflash-gate.md)
 - [Safety model](docs/safety.md)
 - [ZMK command inventory](docs/research/zmk-command-inventory.md)

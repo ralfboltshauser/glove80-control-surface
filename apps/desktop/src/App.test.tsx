@@ -70,19 +70,29 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(
-      await screen.findByText("Live Codex tasks · simulated keyboard"),
-    ).toBeInTheDocument();
+    const readiness = await screen.findByLabelText("System readiness");
+    expect(within(readiness).getByText("Codex")).toBeInTheDocument();
+    expect(within(readiness).getByText("7 tasks")).toBeInTheDocument();
     expect(screen.queryByLabelText("Test simulator behavior")).toBeNull();
     expect(screen.getByText("Live Codex task")).toBeInTheDocument();
-    expect(screen.getByText("Stale")).toBeInTheDocument();
+    expect(screen.getByText("Activity unknown")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Open task in Codex" }),
     ).toBeEnabled();
     expect(
-      screen.getByText(/“Stale” means unknown, not idle/i),
+      screen.getByText(/“Activity unknown” is deliberately not treated as idle/i),
     ).toBeInTheDocument();
     expect(screen.getByText("5 occupied · 2 more tasks")).toBeInTheDocument();
+
+    await userEvent.setup().click(
+      screen.getByRole("button", { name: "Open task in Codex" }),
+    );
+    await waitFor(() =>
+      expect(dispatch.mock.calls.map(([command]) => command.kind)).toContain(
+        "endInteraction",
+      ),
+    );
+    expect(screen.queryByText("Control armed")).not.toBeInTheDocument();
 
     await userEvent.setup().click(
       screen.getByRole("button", { name: "Preview controls" }),
@@ -125,6 +135,36 @@ describe("App", () => {
     expect(screen.queryByText(/select a chat/i)).not.toBeInTheDocument();
   });
 
+  it("can assign the complete 80-key surface in one action", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByRole("button", { name: "Create task board" });
+
+    await user.click(screen.getByRole("button", { name: "All 80" }));
+
+    expect(screen.getByText("80/80")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: /LH C6R1, draft slot 1/i,
+      }),
+    ).toBePressed();
+    expect(
+      screen.getByRole("button", {
+        name: /RH T6, draft slot 80/i,
+      }),
+    ).toBePressed();
+
+    await user.click(
+      screen.getByRole("button", { name: "Create task board" }),
+    );
+
+    expect(
+      await screen.findByRole("button", {
+        name: /Codex task board, 80 keys/i,
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("supports keyboard-only ordered selection across both halves", async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -141,7 +181,7 @@ describe("App", () => {
       within(editor).getByRole("button", { name: /1\s*LH C6R1/i }),
     ).toBeInTheDocument();
     expect(
-      within(editor).getByRole("button", { name: /2\s*RH T6/i }),
+      within(editor).getByRole("button", { name: /2.*RH T6/i }),
     ).toBeInTheDocument();
 
     await user.keyboard("{Home}");
@@ -485,7 +525,7 @@ describe("App", () => {
       screen.getByRole("button", { name: "Lose right half" }),
     );
     expect(
-      await screen.findByText("Partially synchronized"),
+      await screen.findByText("Synchronizing"),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Simulation · desired and applied differ"),

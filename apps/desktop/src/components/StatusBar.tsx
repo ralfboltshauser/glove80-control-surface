@@ -65,7 +65,10 @@ export function StatusBar({ state }: StatusBarProps) {
         {state.taskSource.kind === "codex" ? "Codex" : "Generated source"}{" "}
         <strong>
           {state.taskSource.connection}
-          {board ? ` · ${board.collectionAvailability}` : ""}
+          {board &&
+          board.collectionAvailability !== state.taskSource.connection
+            ? ` · board ${board.collectionAvailability}`
+            : ""}
         </strong>
       </span>
     </footer>

@@ -63,6 +63,7 @@ export function KeyCell({
         : "unassigned",
     tile?.label,
     state ? stateNames[state] : undefined,
+    `Base key ${geometry.legend}`,
   ]
     .filter(Boolean)
     .join(", ");
@@ -118,6 +119,13 @@ export function KeyCell({
       {presentation && (
         <span className="key-cell__light" aria-hidden="true" />
       )}
+      <span
+        className="key-cell__legend"
+        data-compact={geometry.legend.length > 4}
+        aria-hidden="true"
+      >
+        {geometry.legend}
+      </span>
       {state && (
         <span className="key-cell__state-symbol" aria-hidden="true">
           {stateSymbols[state]}

@@ -226,7 +226,7 @@ export class CodexAppServerClient {
         connection: "online",
         detail: cursor
           ? "Showing the 500 most recent Codex tasks."
-          : "Persisted task discovery is online. External live status remains unknown.",
+          : `${threads.filter((thread) => !thread.parentThreadId).length} persisted Codex tasks discovered. Activity remains unknown for tasks owned by another process.`,
         executable: this.options.executable,
         version: this.version,
       });

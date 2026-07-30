@@ -2,6 +2,7 @@ import {
   CalendarDays,
   LayoutGrid,
   Plus,
+  Radar,
 } from "lucide-react";
 
 import type { BoardView, TaskSourceView } from "../domain/types";
@@ -69,24 +70,46 @@ export function AssignmentSidebar({
         </span>
         <span>
           <strong>Next meeting</strong>
-          <small>Not in this milestone</small>
+          <small>Planned · permission-gated</small>
         </span>
       </button>
       <div className="sidebar-note">
-        <strong>
-          {taskSource.kind === "codex"
-            ? taskSource.label
-            : "No chat maintenance"}
-        </strong>
+        <div className="sidebar-note__heading">
+          <span className="sidebar-note__icon" aria-hidden="true">
+            <Radar size={15} />
+          </span>
+          <strong>
+            {taskSource.kind === "codex"
+              ? "Codex discovery"
+              : "Generated task source"}
+          </strong>
+          <span className="source-connection" data-connection={taskSource.connection}>
+            {taskSource.connection}
+          </span>
+        </div>
         <p>
           {sourceTaskCount} changing{" "}
-          {taskSource.kind === "codex" ? "Codex" : "simulated"} tasks feed one
-          durable physical region.
+          {taskSource.kind === "codex" ? "Codex" : "simulated"}{" "}
+          {sourceTaskCount === 1 ? "task feeds" : "tasks feed"} this durable
+          physical region.
         </p>
         <p className="source-detail" data-connection={taskSource.connection}>
           {taskSource.detail}
         </p>
+        {taskSource.lastSyncedAtMillis && (
+          <small className="source-sync">
+            Synced {formatClock(taskSource.lastSyncedAtMillis)}
+          </small>
+        )}
       </div>
     </nav>
   );
+}
+
+function formatClock(timestamp: number): string {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(timestamp);
 }

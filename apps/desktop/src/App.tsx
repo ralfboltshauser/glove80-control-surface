@@ -1,9 +1,3 @@
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Info,
-  X,
-} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { useRuntime } from "./api/useRuntime";
@@ -13,14 +7,10 @@ import { AssignmentSidebar } from "./components/AssignmentSidebar";
 import { BoardInspector } from "./components/BoardInspector";
 import { InteractionHud } from "./components/InteractionHud";
 import { KeyboardCanvas } from "./components/KeyboardCanvas";
+import { ReadinessBar } from "./components/ReadinessBar";
 import { SimulationPanel } from "./components/SimulationPanel";
 import { StatusBar } from "./components/StatusBar";
-import type {
-  AppPreferences,
-  FeedbackView,
-  SemanticState,
-  TaskSourceView,
-} from "./domain/types";
+import type { AppPreferences, SemanticState } from "./domain/types";
 
 export function App() {
   const { state, error, pending, dispatch, clearError } = useRuntime();
@@ -155,6 +145,16 @@ export function App() {
     setDraftCells(previous);
     setDraftHistory((history) => history.slice(0, -1));
   };
+  const replaceDraft = (next: number[]) => {
+    if (
+      next.length === draftCells.length &&
+      next.every((cell, index) => cell === draftCells[index])
+    ) {
+      return;
+    }
+    updateDraft(next);
+    setSelectedCell(next[0] ?? selectedCell);
+  };
   const saveBoard = () => {
     void dispatch({ kind: "assignTaskBoard", cells: draftCells }).then(() => {
       setEditing(false);
@@ -213,15 +213,23 @@ export function App() {
     rememberHudOpener();
     const epoch = (Date.now() >>> 0) || 1;
     void (async () => {
+      let started = false;
       try {
         await dispatch({ kind: "beginInteraction", epoch });
+        started = true;
         await dispatch({
           kind: "invokeCell",
           epoch,
           cellId,
         });
-      } catch {}
-    })();
+      } finally {
+        if (started && state.taskSource.kind === "codex") {
+          await dispatch({ kind: "endInteraction", epoch }).catch(
+            () => undefined,
+          );
+        }
+      }
+    })().catch(() => undefined);
   };
   const rememberHudOpener = () => {
     hudReturnFocusRef.current =
@@ -257,11 +265,10 @@ export function App() {
           }
           onToggleControlLayer={toggleControlLayer}
         />
-      <FeedbackStrip
-        error={error}
-        feedback={state.feedback}
-        hardware={state.mode === "hardware"}
-        taskSource={state.taskSource}
+        <ReadinessBar
+          state={state}
+          error={error}
+          pending={pending}
           onDismissError={clearError}
         />
         <div className="workspace">
@@ -320,6 +327,7 @@ export function App() {
                 void dispatch({ kind: "removeTask", cellId })
               }
               onPreviewAction={previewTaskAction}
+              onReplaceDraft={replaceDraft}
               onSave={saveBoard}
               onSelectDraftCell={setSelectedCell}
               onSetTaskState={setTaskState}
@@ -355,60 +363,5 @@ export function App() {
         />
       )}
     </main>
-  );
-}
-
-interface FeedbackStripProps {
-  error?: string;
-  feedback?: FeedbackView;
-  hardware: boolean;
-  taskSource: TaskSourceView;
-  onDismissError: () => void;
-}
-
-function FeedbackStrip({
-  error,
-  feedback,
-  hardware,
-  taskSource,
-  onDismissError,
-}: FeedbackStripProps) {
-  const tone = error ? "error" : feedback?.tone ?? "info";
-  const Icon =
-    tone === "success"
-      ? CheckCircle2
-      : tone === "warning" || tone === "error"
-        ? AlertTriangle
-        : Info;
-  return (
-    <div
-      className="feedback-strip"
-      data-tone={tone}
-      role={error ? "alert" : "status"}
-    >
-      <span className="simulation-pill">
-        {hardware
-          ? "Live keyboard · leased USB control"
-          : taskSource.kind === "codex"
-            ? "Live Codex tasks · simulated keyboard"
-          : "Simulated data · no hardware reads or writes"}
-      </span>
-      <span className="feedback-strip__message">
-        <Icon size={14} aria-hidden="true" />
-        {error ??
-          feedback?.message ??
-          taskSource.detail}
-      </span>
-      {error && (
-        <button
-          className="icon-button icon-button--small"
-          type="button"
-          aria-label="Dismiss error"
-          onClick={onDismissError}
-        >
-          <X size={15} />
-        </button>
-      )}
-    </div>
   );
 }

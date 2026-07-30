@@ -90,7 +90,7 @@ order.
   - RH `cc95d8a91de3e3d9688b1f62fb77dd084ffa57ff0355a36fc0ea4143eb7f682c`
 - Protocol: 20 tests passed.
 - Control core: 16 tests passed.
-- Desktop: 98 tests passed, with one platform-specific test skipped.
+- Desktop: 101 tests passed, with one platform-specific test skipped.
 - Covered host cases include full and partial scenes, delayed right ACK,
   bounded ACK timeout, Disable during ACK polling, coalescing, lease renewal,
   pause/close, scene expiry/resync, duplicate macOS collections, idle

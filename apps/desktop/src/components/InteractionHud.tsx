@@ -202,7 +202,7 @@ function stateLabel(state: NonNullable<BoardView["slots"][number]["tile"]>["stat
     case "failed":
       return "Failed";
     case "stale":
-      return "Stale";
+      return "Activity unknown";
   }
 }
 
