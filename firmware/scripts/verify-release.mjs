@@ -11,10 +11,10 @@ const EXPECTED_KEYMAP =
 const EXPECTED_LAYOUT =
   "aa4de7a2e830fa70462cc3a6f1779b97c335de045edf5a7dbdb2ed9c156f91d3";
 const EXPECTED_DERIVED =
-  "277993659c82a49eb42835ac26c5cb62601c7cedeee5560106ec76501e13e1bb";
-const EXPECTED_BUILD_ID = "g80m4a05";
-const EXPECTED_RELEASE_ID = "m4-alpha5";
-const EXPECTED_PROTOCOL_VERSION = 2;
+  "b0256aafbd55bf40cee502371e8bdace025417cdf936e051fd8a0a8b731516e9";
+const EXPECTED_BUILD_ID = "g80m4a06";
+const EXPECTED_RELEASE_ID = "m4-alpha6";
+const EXPECTED_PROTOCOL_VERSION = 3;
 const EXPECTED_TOPOLOGY_ID = "glove80-rgb-80-v1";
 const EXPECTED_ZMK_COMMIT =
   "2f73a230e2fc7b2bd64a9736181e87bf54338131";
@@ -22,7 +22,7 @@ const EXPECTED_ZEPHYR_COMMIT =
   "dacab4875df72109b96cc8977547a0dc04875bcd";
 const EXPECTED_ZEPHYR_SDK = "0.16.3";
 const EXPECTED_SOURCE_DIFF =
-  "b766ac24afa52b580a88bd69e292678a965f2161bf9493a30c44af2ad44d9d75";
+  "dbd06aa9c363fae57cb9dc706c15bd47154eb5dcba00589b3fa7212bef8bf3e3";
 const EXPECTED_UF2_FAMILY = {
   lh: 0x9807b007,
   rh: 0x9808b007,
@@ -35,6 +35,7 @@ const EXPECTED_PATCHES = [
   "firmware/patches/0002-split-ack-notification.patch",
   "firmware/patches/0003-harden-leases-and-toggle-control.patch",
   "firmware/patches/0004-harden-one-shot-interaction-and-split-deadlines.patch",
+  "firmware/patches/0005-add-two-bank-hold-interaction.patch",
 ];
 const execFile = promisify(execFileCallback);
 
@@ -80,7 +81,7 @@ const topologyPath = resolve(
 );
 const releaseManifest = JSON.parse(
   await readFile(
-    resolve(repositoryRoot, "firmware/releases/m4-alpha5.json"),
+    resolve(repositoryRoot, "firmware/releases/m4-alpha6.json"),
     "utf8",
   ),
 );
@@ -156,14 +157,20 @@ assertEqual(
 assertEqual(
   JSON.stringify(releaseManifest.layout.interactionGesture),
   JSON.stringify({
-    kind: "oneShotChord",
-    positions: [64, 11],
-    cells: [29, 6],
-    label: "Magic + 1",
-    armTimeoutMillis: 5000,
-    holdTimeoutMillis: 5000,
-    indicatorCell: 29,
-    indicatorLedChannel: 39,
+    kind: "twoBankHold",
+    primary: {
+      position: 75,
+      cell: 69,
+      ledChannel: 55,
+      fallback: "KP_DOT",
+    },
+    secondary: {
+      position: 76,
+      cell: 70,
+      ledChannel: 61,
+      fallback: "KP_N0",
+    },
+    holdTimeoutMillis: 30000,
   }),
   "manifest interaction gesture",
 );
@@ -242,7 +249,7 @@ for (const side of ["lh", "rh"]) {
     JSON.stringify([...EXPECTED_LAYERS, "Control"]),
     `${side} surface layer order`,
   );
-  assertSurfaceToggleChord(dts, side);
+  assertSurfaceHoldBindings(dts, side);
 
   const surfaceUf2 = resolve(surfaceDirectory, side, "zephyr/zmk.uf2");
   if (side === "lh") {
@@ -297,8 +304,12 @@ for (const side of ["lh", "rh"]) {
     `${side} recovery layer order`,
   );
   surfaceLayers.slice(0, 4).forEach((layer, index) => {
+    const surfaceBindings =
+      layer.name === "Base"
+        ? normalizeSurfaceHoldFallbacks(layer.bindings)
+        : layer.bindings;
     assertEqual(
-      layer.bindings,
+      surfaceBindings,
       recoveryLayers[index].bindings,
       `${side} preserved ${layer.name} bindings`,
     );
@@ -509,23 +520,30 @@ function assertPermutation(candidate, label) {
   }
 }
 
-function assertSurfaceToggleChord(dts, side) {
+function assertSurfaceHoldBindings(dts, side) {
   const normalized = dts.replace(/\s+/g, " ");
   assertIncludes(
     normalized,
-    "surface_toggle_chord {",
-    `${side} surface toggle chord`,
+    "surface_primary: surface_primary",
+    `${side} primary hold behavior`,
   );
   assertIncludes(
     normalized,
-    "key-positions = < 0x40 0xb >;",
-    `${side} surface toggle positions`,
+    "bank = < 0x0 >;",
+    `${side} primary bank`,
   );
   assertIncludes(
     normalized,
-    "bindings = < &surface_toggle >;",
-    `${side} surface toggle binding`,
+    "surface_secondary: surface_secondary",
+    `${side} secondary hold behavior`,
   );
+  assertIncludes(normalized, "bank = < 0x1 >;", `${side} secondary bank`);
+}
+
+function normalizeSurfaceHoldFallbacks(bindings) {
+  return bindings
+    .replace("&surface_primary 0x70063 0x0", "&kp 0x70063")
+    .replace("&surface_secondary 0x70062 0x0", "&kp 0x70062");
 }
 
 function assertBoardAndRole(config, side, label) {

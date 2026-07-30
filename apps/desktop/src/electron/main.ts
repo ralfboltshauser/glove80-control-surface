@@ -337,6 +337,8 @@ async function runLiveDeviceSmokeTest(): Promise<void> {
     await surface.setDesired({
       generation: Math.floor(Date.now() % 0xffff_ffff) || 1,
       brightness: 48,
+      primaryActionCells: Array.from({ length: 80 }, (_, index) => index),
+      secondaryActionCells: [],
       cells: Array.from({ length: 80 }, (_, index) => ({
         cellId: cellId(index),
         color:

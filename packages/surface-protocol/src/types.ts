@@ -1,4 +1,4 @@
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 export const GLOVE80_CELL_COUNT = 80;
 
 declare const cellIdBrand: unique symbol;
@@ -26,7 +26,8 @@ export class ProtocolError extends Error {
       | "brightnessOutOfRange"
       | "sceneTooLarge"
       | "unavailableCell"
-      | "duplicateSceneCell",
+      | "duplicateSceneCell"
+      | "duplicateActionCell",
     message: string,
     readonly value?: unknown,
   ) {
@@ -75,6 +76,7 @@ export function sceneGeneration(value: number): SceneGeneration {
 
 export type Half = "left" | "right";
 export type EffectKind = "solid" | "pulse";
+export type ActionBank = "primary" | "secondary";
 
 export interface Rgb {
   readonly red: number;
@@ -105,7 +107,7 @@ export function simulatedGlove80Capabilities(): DeviceCapabilities {
   return {
     protocolVersion: PROTOCOL_VERSION,
     topologyId: "glove80-rgb-80-v1",
-    firmwareBuildId: "g80m4a05",
+    firmwareBuildId: "g80m4a06",
     availableCells: Array.from({ length: GLOVE80_CELL_COUNT }, (_, value) => cellId(value)),
     supportsInputEvents: true,
     supportsRightHalfAcknowledgement: true,
@@ -181,6 +183,8 @@ export interface DesiredScene {
   readonly leaseMillis: number;
   readonly brightness: number;
   readonly cells: readonly CellPresentation[];
+  readonly primaryActionCells: readonly CellId[];
+  readonly secondaryActionCells: readonly CellId[];
 }
 
 export function validateDesiredScene(
@@ -248,6 +252,33 @@ export function validateDesiredScene(
     }
     seen.add(presentation.cellId);
   }
+  validateActionCells(scene.primaryActionCells, available);
+  validateActionCells(scene.secondaryActionCells, available);
+}
+
+function validateActionCells(
+  cells: readonly CellId[],
+  available: ReadonlySet<number>,
+): void {
+  const seen = new Set<number>();
+  for (const value of cells) {
+    cellId(value);
+    if (!available.has(value)) {
+      throw new ProtocolError(
+        "unavailableCell",
+        `action cell ${value} is not exposed by this device`,
+        value,
+      );
+    }
+    if (seen.has(value)) {
+      throw new ProtocolError(
+        "duplicateActionCell",
+        `action mask contains cell ${value} more than once`,
+        value,
+      );
+    }
+    seen.add(value);
+  }
 }
 
 export function validatePresentation(presentation: CellPresentation): void {
@@ -281,6 +312,7 @@ export interface CellEvent {
   readonly interactionEpoch: number;
   readonly cellId: CellId;
   readonly kind: CellEventKind;
+  readonly bank: ActionBank;
 }
 
 export type DeviceErrorCode =
@@ -298,12 +330,14 @@ export type DeviceEvent =
       readonly sessionId: SessionId;
       readonly sequence: number;
       readonly interactionEpoch: number;
+      readonly bank: ActionBank;
     }
   | {
       readonly kind: "interactionModeExited";
       readonly sessionId: SessionId;
       readonly sequence: number;
       readonly interactionEpoch: number;
+      readonly bank: ActionBank;
     }
   | {
       readonly kind: "sceneExpired";

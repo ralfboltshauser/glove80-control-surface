@@ -103,6 +103,7 @@ export class SimulationRuntime implements AppBackend {
   private allocation = new Map<number, string>();
   private frozenActions?: Map<number, FrozenAction>;
   private interactionEpoch?: number;
+  private interactionBank?: "primary" | "secondary";
   private deferred = false;
   private acknowledged = new Map<string, number>();
   private sourceAvailability: CollectionAvailability;
@@ -323,6 +324,7 @@ export class SimulationRuntime implements AppBackend {
           throw new Error("An interaction is already active.");
         }
         this.interactionEpoch = command.epoch;
+        this.interactionBank = command.bank;
         this.frozenActions = new Map(
           [...this.allocation].flatMap(([cellId, resourceId]) => {
             const tile = this.displayTasks.find(
@@ -349,6 +351,7 @@ export class SimulationRuntime implements AppBackend {
           throw new Error("Interaction epoch does not match.");
         }
         this.interactionEpoch = undefined;
+        this.interactionBank = undefined;
         this.frozenActions = undefined;
         if (this.deferred) {
           this.deferred = false;
@@ -358,7 +361,7 @@ export class SimulationRuntime implements AppBackend {
         this.applyScene();
         break;
       case "invokeCell":
-        await this.invoke(command.epoch, command.cellId);
+        await this.invoke(command.epoch, command.cellId, command.bank);
         break;
     }
     this.revision += 1;
@@ -503,7 +506,11 @@ export class SimulationRuntime implements AppBackend {
       : tile.retention;
   }
 
-  private async invoke(epoch: number, cellId: number) {
+  private async invoke(
+    epoch: number,
+    cellId: number,
+    bank: "primary" | "secondary",
+  ) {
     if (this.interactionEpoch !== epoch || !this.frozenActions) {
       throw new Error("Hold the control layer before invoking a task.");
     }
@@ -522,6 +529,25 @@ export class SimulationRuntime implements AppBackend {
         "warning",
         "This action is currently unavailable.",
       );
+      return;
+    }
+    if (bank !== this.interactionBank) {
+      throw new Error("Action bank does not match the held control key.");
+    }
+    if (bank === "secondary") {
+      if (
+        selected.state !== "completedUnread" &&
+        selected.state !== "failed"
+      ) {
+        this.feedback = message(
+          "warning",
+          "This task has no result to acknowledge.",
+        );
+        return;
+      }
+      this.acknowledged.set(selected.resourceId, selected.revision);
+      this.applyScene();
+      this.feedback = message("success", `Acknowledged ${selected.label}.`);
       return;
     }
     if (!this.options.invokeTask) {
@@ -650,7 +676,7 @@ export class SimulationRuntime implements AppBackend {
       configuration: cloneConfiguration(this.configuration),
       device: {
         capabilities: {
-          protocolVersion: 2,
+          protocolVersion: 3,
           topologyId: "glove80-rgb-80-v1",
           availableCells: Array.from({ length: 80 }, (_, index) => index),
           supportsInputEvents: true,
@@ -687,6 +713,7 @@ export class SimulationRuntime implements AppBackend {
             overflow,
             collectionAvailability: this.sourceAvailability,
             interactionEpoch: this.interactionEpoch,
+            interactionBank: this.interactionBank,
           }
         : undefined,
       taskSource: { ...this.taskSource },
@@ -704,6 +731,7 @@ export class SimulationRuntime implements AppBackend {
 
   private cancelInteraction() {
     this.interactionEpoch = undefined;
+    this.interactionBank = undefined;
     this.frozenActions = undefined;
     this.deferred = false;
   }

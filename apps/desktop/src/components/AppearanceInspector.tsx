@@ -50,7 +50,10 @@ export function AppearanceInspector({
         <div className="field">
           <div className="field-heading">
             <label htmlFor="surface-brightness">LED brightness</label>
-            <output htmlFor="surface-brightness">{brightness}%</output>
+            <output htmlFor="surface-brightness">
+              {Math.round((brightness / Math.max(maximumBrightness, 1)) * 100)}%
+              {" "}of safe range
+            </output>
           </div>
           <input
             id="surface-brightness"
@@ -61,8 +64,9 @@ export function AppearanceInspector({
             onChange={(event) => setBrightness(event.target.valueAsNumber)}
           />
           <p>
-            The device enforces its own maximum; this simulator caps at{" "}
-            {maximumBrightness}%.
+            The keyboard caps this range at {maximumBrightness}/255 (about{" "}
+            {Math.round((maximumBrightness / 255) * 100)}% per channel) and
+            scales dense scenes to its per-half current budget.
           </p>
         </div>
         <label className="checkbox-row">

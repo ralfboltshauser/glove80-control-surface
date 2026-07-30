@@ -77,17 +77,29 @@ export function parseRuntimeCommand(value: unknown): RuntimeCommand {
       }
       break;
     case "beginInteraction":
+      if (
+        isPositiveInteger(value.epoch) &&
+        (value.bank === "primary" || value.bank === "secondary")
+      ) {
+        return { kind: value.kind, epoch: value.epoch, bank: value.bank };
+      }
+      break;
     case "endInteraction":
       if (isPositiveInteger(value.epoch)) {
         return { kind: value.kind, epoch: value.epoch };
       }
       break;
     case "invokeCell":
-      if (isPositiveInteger(value.epoch) && isCellId(value.cellId)) {
+      if (
+        isPositiveInteger(value.epoch) &&
+        isCellId(value.cellId) &&
+        (value.bank === "primary" || value.bank === "secondary")
+      ) {
         return {
           kind: value.kind,
           epoch: value.epoch,
           cellId: value.cellId,
+          bank: value.bank,
         };
       }
       break;

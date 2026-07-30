@@ -135,6 +135,17 @@ export class HardwareRuntime implements TaskBoardRuntime {
                   }]
                 : [],
             ),
+            primaryActionCells: state.board.slots
+              .filter((slot) => slot.tile?.action.enabled)
+              .map((slot) => slot.cellId),
+            secondaryActionCells: state.board.slots
+              .filter(
+                (slot) =>
+                  slot.tile?.action.enabled &&
+                  (slot.tile.state === "completedUnread" ||
+                    slot.tile.state === "failed"),
+              )
+              .map((slot) => slot.cellId),
           }
         : undefined;
     if (state.device.snapshot.paused) {
@@ -186,6 +197,7 @@ export class HardwareRuntime implements TaskBoardRuntime {
           this.coreState = await this.core.dispatch({
             kind: "beginInteraction",
             epoch: event.interactionEpoch,
+            bank: event.bank,
           });
           await this.syncSurface();
         }
@@ -200,6 +212,7 @@ export class HardwareRuntime implements TaskBoardRuntime {
             kind: "invokeCell",
             epoch: event.event.interactionEpoch,
             cellId: Number(event.event.cellId),
+            bank: event.event.bank,
           });
           await this.syncSurface();
         }

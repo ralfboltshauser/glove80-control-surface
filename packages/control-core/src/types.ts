@@ -8,6 +8,7 @@ export type SemanticState =
 
 export type CollectionAvailability = "online" | "stale" | "unavailable";
 export type EffectKind = "solid" | "pulse";
+export type ActionBank = "primary" | "secondary";
 export type SyncStatus =
   | "idle"
   | "applied"
@@ -111,6 +112,7 @@ export interface BoardView {
   overflow: ResolvedTile[];
   collectionAvailability: CollectionAvailability;
   interactionEpoch?: number;
+  interactionBank?: ActionBank;
 }
 
 export interface FeedbackView {
@@ -167,9 +169,9 @@ export type RuntimeCommand =
   | { kind: "expireScene" }
   | { kind: "resetSimulation" }
   | { kind: "acknowledge"; cellId: number }
-  | { kind: "beginInteraction"; epoch: number }
+  | { kind: "beginInteraction"; epoch: number; bank: ActionBank }
   | { kind: "endInteraction"; epoch: number }
-  | { kind: "invokeCell"; epoch: number; cellId: number };
+  | { kind: "invokeCell"; epoch: number; cellId: number; bank: ActionBank };
 
 export interface AppBackend {
   bootstrap(): Promise<AppViewState>;

@@ -199,7 +199,7 @@ export function App() {
     }
     rememberHudOpener();
     const epoch = (Date.now() >>> 0) || 1;
-    void dispatch({ kind: "beginInteraction", epoch });
+    void dispatch({ kind: "beginInteraction", epoch, bank: "primary" });
   };
   const previewTaskAction = (cellId: number) => {
     if (interactionEpoch !== undefined) {
@@ -207,6 +207,7 @@ export function App() {
         kind: "invokeCell",
         epoch: interactionEpoch,
         cellId,
+        bank: state.board?.interactionBank ?? "primary",
       });
       return;
     }
@@ -215,12 +216,13 @@ export function App() {
     void (async () => {
       let started = false;
       try {
-        await dispatch({ kind: "beginInteraction", epoch });
+        await dispatch({ kind: "beginInteraction", epoch, bank: "primary" });
         started = true;
         await dispatch({
           kind: "invokeCell",
           epoch,
           cellId,
+          bank: "primary",
         });
       } finally {
         if (started && state.taskSource.kind === "codex") {
@@ -356,6 +358,7 @@ export function App() {
                     kind: "invokeCell",
                     epoch: interactionEpoch,
                     cellId,
+                    bank: state.board?.interactionBank ?? "primary",
                   })
               : undefined
           }

@@ -37,16 +37,17 @@ if (
 ) {
   throw new Error("zmkPositionToCell must be a permutation of 0..79");
 }
-if (
-  !Array.isArray(topology.interactionToggleChordPositions) ||
-  !Array.isArray(topology.interactionToggleChordCells) ||
-  topology.interactionToggleChordPositions.length !== 2 ||
-  topology.interactionToggleChordPositions.some(
-    (position, index) =>
-      positionToCell[position] !== topology.interactionToggleChordCells[index],
-  )
-) {
-  throw new Error("interaction toggle chord positions/cells do not agree");
+for (const bank of ["primary", "secondary"]) {
+  const position = topology[`${bank}HoldPosition`];
+  const cell = topology[`${bank}HoldCell`];
+  const channel = topology[`${bank}HoldLedChannel`];
+  if (
+    !Number.isInteger(position) ||
+    positionToCell[position] !== cell ||
+    topology.cellToLedChannel[cell] !== channel
+  ) {
+    throw new Error(`${bank} hold position, cell, and LED channel do not agree`);
+  }
 }
 
 const originalMagicBinding = "&magic LAYER_Magic 0";
@@ -61,6 +62,13 @@ let derived = input.replace(
 if (derived === input) {
   throw new Error("Factory layer definition not found");
 }
+const originalHolds = "&kp KP_DOT  &kp KP_N0";
+const generatedHolds =
+  "&surface_primary KP_DOT 0  &surface_secondary KP_N0 0";
+if (derived.split(originalHolds).length - 1 !== 1) {
+  throw new Error("expected the Base-layer KP_DOT/KP_N0 hold-key pair exactly once");
+}
+derived = derived.replace(originalHolds, generatedHolds);
 
 const keymapStart = derived.indexOf("keymap {");
 if (keymapStart < 0) throw new Error("keymap node not found");
@@ -97,9 +105,18 @@ const behaviors = `
 /* Generated leased control-surface behaviors. */
 / {
     behaviors {
-        surface_toggle: surface_toggle {
-            compatible = "zmk,behavior-control-surface-toggle";
-            #binding-cells = <0>;
+        surface_primary: surface_primary {
+            compatible = "zmk,behavior-control-surface-trigger";
+            #binding-cells = <2>;
+            fallback = <&kp>;
+            bank = <0>;
+        };
+
+        surface_secondary: surface_secondary {
+            compatible = "zmk,behavior-control-surface-trigger";
+            #binding-cells = <2>;
+            fallback = <&kp>;
+            bank = <1>;
         };
 
         surface_key: surface_key {
@@ -108,15 +125,6 @@ const behaviors = `
         };
     };
 
-    combos {
-        compatible = "zmk,combos";
-        surface_toggle_chord {
-            timeout-ms = <75>;
-            require-prior-idle-ms = <100>;
-            key-positions = <${topology.interactionToggleChordPositions.join(" ")}>;
-            bindings = <&surface_toggle>;
-        };
-    };
 };
 `;
 derived += behaviors;
@@ -139,8 +147,16 @@ process.stdout.write(
       generatedLayers: 1,
       controlBindings: 80,
       preservedMagicBindings: 2,
-      toggleChordPositions: topology.interactionToggleChordPositions,
-      toggleChordCells: topology.interactionToggleChordCells,
+      primaryHold: {
+        position: topology.primaryHoldPosition,
+        cell: topology.primaryHoldCell,
+        fallback: topology.primaryFallback,
+      },
+      secondaryHold: {
+        position: topology.secondaryHoldPosition,
+        cell: topology.secondaryHoldCell,
+        fallback: topology.secondaryFallback,
+      },
       eventIdentity: "zmk-position",
     },
     null,

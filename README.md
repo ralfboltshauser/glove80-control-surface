@@ -9,8 +9,8 @@ Desktop integrations can attach live state and actions to physical keys.
 
 > [!IMPORTANT]
 > The current keyboard has hardware-tested alpha1 firmware. The repository
-> contains a reproducible, unflashed alpha5 candidate and matching recovery
-> pair. Alpha5 is not installable until the grouped hardware gate is reviewed
+> contains a reproducible, unflashed alpha6 candidate and matching recovery
+> pair. Alpha6 is not installable until the grouped hardware gate is reviewed
 > and the user explicitly approves both flashes.
 
 ## The idea
@@ -19,14 +19,15 @@ The product has two independent planes:
 
 - **Ambient display:** selected keys can show live status while the keyboard is
   being used normally.
-- **Explicit interaction:** a deliberate Magic+1 chord arms one action on the
-  generated Control layer, so any of the 80 keys can invoke its assignment.
+- **Explicit interaction:** hold the printed ↑ key for primary actions or the
+  printed ↓ key for secondary actions. The generated Control layer is active
+  only for the duration of that hold.
 
-A low-brightness left indicator pulses while armed. Releasing one action key,
-pressing Magic+1 again, waiting five seconds before pressing, holding an action
-for five seconds, or losing the desktop lease exits Control. A timed-out held
-action receives a matching release first. The original typing layers remain
-intact.
+The held modifier and currently available action keys light immediately in
+firmware; pressed actions brighten without a host round trip. Releasing the
+modifier or losing the desktop lease exits Control. With no live session, ↑
+and ↓ retain their original `KP_DOT` and `KP_N0` bindings. The first held
+modifier wins when both are pressed.
 
 The first product has two integrations:
 
@@ -55,14 +56,14 @@ receives a device handle.
 Glove80 firmware
   ├── renders a leased scene across both 40-key halves
   ├── runs solid and pulse locally
-  └── emits key down/up events in a leased Control layer
+  └── emits banked key down/up events in a leased Control layer
 
 One cross-platform desktop application
   ├── owns the USB HID session in its Electron main process
   ├── stores bindings for every available RGB cell
   ├── runs built-in integrations
   ├── resolves semantic state into accessible visuals
-  └── shows a labeled HUD while one Control action is armed and its window is open
+  └── shows a labeled HUD while a primary or secondary bank is held
 ```
 
 See [Product model](docs/product.md), [Architecture](docs/architecture.md),
@@ -77,8 +78,7 @@ and [Calendar integration UX](docs/integration-calendar.md).
 1. **Normal typing is inviolable.** A crash or disconnect must not strand the
    keyboard in a control mode.
 2. **Display and interaction are separate.** Status may remain glanceable while
-   typing; only an explicit one-shot arm chord changes what the next key press
-   means.
+   typing; only an explicit ↑ or ↓ hold changes what other keys mean.
 3. **Firmware is generic.** It understands cells, events, scenes, effects, and
    sessions—not calendars, task systems, or individual applications.
 4. **Bindings are dynamic.** Assigning an integration to a key must not require
@@ -106,7 +106,7 @@ and [Calendar integration UX](docs/integration-calendar.md).
 
 Firmware work expanded in measured steps: the existing six-cell experiment
 remains a regression fixture, then complete 40-cell left scenes and
-synchronized 40-cell right scenes were implemented. Alpha5 targets all 80
+synchronized 40-cell right scenes were implemented. Alpha6 targets all 80
 cells, but is not a release until the grouped physical acceptance gate passes.
 Bluetooth, a public plugin SDK, and a generic Calendar-provider layer remain
 separate evidence-gated expansions.

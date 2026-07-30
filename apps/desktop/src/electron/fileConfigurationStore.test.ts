@@ -76,7 +76,11 @@ describe("Electron configuration store", () => {
       brightness: 28,
       reduceMotion: true,
     });
-    await first.dispatch({ kind: "beginInteraction", epoch: 12 });
+    await first.dispatch({
+      kind: "beginInteraction",
+      epoch: 12,
+      bank: "primary",
+    });
     await first.dispatch({ kind: "burst" });
 
     const persisted = readFileSync(filePath, "utf8");

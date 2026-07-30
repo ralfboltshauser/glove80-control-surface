@@ -57,6 +57,8 @@ export interface SurfaceScene {
   readonly generation: number;
   readonly brightness: number;
   readonly cells: readonly CellPresentation[];
+  readonly primaryActionCells: readonly number[];
+  readonly secondaryActionCells: readonly number[];
 }
 
 export type SurfaceConnectionState =
@@ -117,6 +119,7 @@ export class GenericSurfaceDevice {
   private connectionFailure?: Promise<void>;
   private lifecycleEpoch = 0;
   private interactionEpoch?: number;
+  private interactionBank?: "primary" | "secondary";
   private interactionSequence?: number;
   private interactionResetRequired = false;
   private readonly interactionPressed = new Set<number>();
@@ -181,6 +184,8 @@ export class GenericSurfaceDevice {
           leaseMillis: this.effectiveLeaseMillis(),
           brightness: next.brightness,
           cells: next.cells,
+          primaryActionCells: next.primaryActionCells.map(cellId),
+          secondaryActionCells: next.secondaryActionCells.map(cellId),
         },
         this.capabilitiesValue ?? simulatedGlove80Capabilities(),
       );
@@ -521,6 +526,12 @@ export class GenericSurfaceDevice {
           ),
         }))
         .sort((left, right) => Number(left.cellId) - Number(right.cellId)),
+      primaryActionCells: scene.primaryActionCells.map((cell) =>
+        cellId(PHYSICAL_CELL_TO_LED_CHANNEL[cell]!),
+      ),
+      secondaryActionCells: scene.secondaryActionCells.map((cell) =>
+        cellId(PHYSICAL_CELL_TO_LED_CHANNEL[cell]!),
+      ),
     };
     validateDesiredScene(desired, this.requireCapabilities());
     const packets = packetsForCompleteScene(desired);
@@ -842,6 +853,7 @@ export class GenericSurfaceDevice {
           return;
         }
         this.interactionEpoch = event.interactionEpoch;
+        this.interactionBank = event.bank;
         this.interactionSequence = event.sequence;
         this.interactionPressed.clear();
         this.publishEvent(event);
@@ -850,6 +862,7 @@ export class GenericSurfaceDevice {
         const cell = Number(event.event.cellId);
         if (
           this.interactionEpoch !== event.event.interactionEpoch ||
+          this.interactionBank !== event.event.bank ||
           !isNextEventSequence(
             this.interactionSequence,
             event.event.sequence,
@@ -873,6 +886,7 @@ export class GenericSurfaceDevice {
       case "interactionModeExited":
         if (
           this.interactionEpoch !== event.interactionEpoch ||
+          this.interactionBank !== event.bank ||
           !isNextEventSequence(this.interactionSequence, event.sequence)
         ) {
           this.invalidateInteraction(expectedSession);
@@ -919,6 +933,7 @@ export class GenericSurfaceDevice {
         sessionId: session,
         sequence: this.interactionSequence,
         interactionEpoch: this.interactionEpoch,
+        bank: this.interactionBank ?? "primary",
       });
     }
     if (
@@ -935,6 +950,7 @@ export class GenericSurfaceDevice {
 
   private resetInteraction(): void {
     this.interactionEpoch = undefined;
+    this.interactionBank = undefined;
     this.interactionSequence = undefined;
     this.interactionPressed.clear();
   }
@@ -1139,6 +1155,7 @@ function packetToDeviceEvent(packet: Packet): DeviceEvent | undefined {
           sessionId: packet.sessionId,
           sequence: packet.eventSequence,
           interactionEpoch: packet.interactionEpoch,
+          bank: packet.bank,
           cellId: packet.cellId,
           kind: packet.eventKind,
         },
@@ -1149,6 +1166,7 @@ function packetToDeviceEvent(packet: Packet): DeviceEvent | undefined {
         sessionId: packet.sessionId,
         sequence: packet.eventSequence,
         interactionEpoch: packet.interactionEpoch,
+        bank: packet.bank,
       };
     case PacketKind.InteractionModeExited:
       return {
@@ -1156,6 +1174,7 @@ function packetToDeviceEvent(packet: Packet): DeviceEvent | undefined {
         sessionId: packet.sessionId,
         sequence: packet.eventSequence,
         interactionEpoch: packet.interactionEpoch,
+        bank: packet.bank,
       };
     case PacketKind.SceneExpired:
       return {
@@ -1228,6 +1247,8 @@ function cloneScene(scene: SurfaceScene): SurfaceScene {
       color: { ...cell.color },
       effect: cell.effect,
     })),
+    primaryActionCells: [...scene.primaryActionCells],
+    secondaryActionCells: [...scene.secondaryActionCells],
   };
 }
 
@@ -1241,7 +1262,12 @@ function sceneFingerprint(scene: SurfaceScene): string {
       cell.color.blue,
       cell.effect,
     ]);
-  return JSON.stringify([scene.brightness, cells]);
+  return JSON.stringify([
+    scene.brightness,
+    cells,
+    [...scene.primaryActionCells].sort((a, b) => a - b),
+    [...scene.secondaryActionCells].sort((a, b) => a - b),
+  ]);
 }
 
 function cloneSnapshot(

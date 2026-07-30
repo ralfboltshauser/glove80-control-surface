@@ -382,6 +382,7 @@ describe("complete 80-cell surface device", () => {
       sessionId: sessionId(21),
       eventSequence: 1,
       interactionEpoch: 1,
+      bank: "primary",
     });
     await waitFor(() => events.length === 1);
 
@@ -397,6 +398,7 @@ describe("complete 80-cell surface device", () => {
         interactionEpoch: 1,
         cellId: cellId(0),
         eventKind: "down",
+        bank: "primary",
       }),
     );
     scheduler.advanceToNext();
@@ -429,6 +431,7 @@ describe("complete 80-cell surface device", () => {
       interactionEpoch: 1,
       cellId: cellId(0),
       eventKind: "down",
+      bank: "primary",
     });
     await new Promise<void>((resolve) => setImmediate(resolve));
     expect(events).toEqual([]);
@@ -438,6 +441,7 @@ describe("complete 80-cell surface device", () => {
       sessionId: sessionId(24),
       eventSequence: 10,
       interactionEpoch: 2,
+      bank: "primary",
     });
     transport.emitDevicePacket(3, {
       kind: PacketKind.CellEvent,
@@ -446,6 +450,7 @@ describe("complete 80-cell surface device", () => {
       interactionEpoch: 2,
       cellId: cellId(0),
       eventKind: "down",
+      bank: "primary",
     });
     await waitFor(() => events.length === 2);
     expect(events).toEqual([
@@ -488,6 +493,8 @@ describe("complete 80-cell surface device", () => {
         color: { red: 1, green: 2, blue: 3 },
         effect: "solid",
       }],
+      primaryActionCells: [0],
+      secondaryActionCells: [],
     });
     await surface.enable();
 
@@ -499,6 +506,7 @@ describe("complete 80-cell surface device", () => {
       sessionId: sessionId(22),
       eventSequence: 1,
       interactionEpoch: 1,
+      bank: "primary",
     });
     transport.emitDevicePacket(5, {
       kind: PacketKind.CellEvent,
@@ -507,6 +515,7 @@ describe("complete 80-cell surface device", () => {
       interactionEpoch: 1,
       cellId: cellId(5),
       eventKind: "down",
+      bank: "primary",
     });
     await waitFor(() => eventCell !== undefined);
     expect(eventCell).toBe(40);
@@ -532,6 +541,7 @@ describe("complete 80-cell surface device", () => {
       sessionId: sessionId(23),
       eventSequence: 1,
       interactionEpoch: 1,
+      bank: "primary",
     });
     await waitFor(() => events.length === 1);
     transport.failNextRead = true;
@@ -1027,6 +1037,8 @@ function fullScene(generation: number, red = 40): SurfaceScene {
   return {
     generation,
     brightness: 48,
+    primaryActionCells: Array.from({ length: 80 }, (_, index) => index),
+    secondaryActionCells: [2, 4],
     cells: Array.from({ length: 80 }, (_, index) => ({
       cellId: cellId(index),
       color: {

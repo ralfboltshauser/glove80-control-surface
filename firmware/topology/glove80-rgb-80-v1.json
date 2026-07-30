@@ -20,11 +20,14 @@
     61, 67, 73, 79, 40, 41, 42, 43, 44, 45
   ],
   "rightLedChannelMapping": "mirrored-pcb hypothesis; calibrate one channel at a time",
-  "interactionToggleChordPositions": [64, 11],
-  "interactionToggleChordCells": [29, 6],
-  "interactionGesture": "press Magic and 1 together to arm one Control action; press again to cancel",
-  "interactionArmTimeoutMillis": 5000,
-  "interactionHoldTimeoutMillis": 5000,
-  "interactionIndicatorCell": 29,
-  "interactionIndicatorLedChannel": 39
+  "primaryHoldPosition": 75,
+  "primaryHoldCell": 69,
+  "primaryHoldLedChannel": 55,
+  "primaryFallback": "KP_DOT",
+  "secondaryHoldPosition": 76,
+  "secondaryHoldCell": 70,
+  "secondaryHoldLedChannel": 61,
+  "secondaryFallback": "KP_N0",
+  "interactionGesture": "hold printed Up for primary actions or printed Down for secondary actions",
+  "interactionHoldTimeoutMillis": 30000
 }

@@ -93,6 +93,8 @@ describe("generic 80-cell HID framing", () => {
       leaseMillis: 10_000,
       brightness: 48,
       cells,
+      primaryActionCells: [cellId(0), cellId(79)],
+      secondaryActionCells: [cellId(40)],
     });
 
     expect(packets).toHaveLength(15);
@@ -124,6 +126,8 @@ describe("generic 80-cell HID framing", () => {
       leaseMillis: 10_000,
       brightness: 16,
       cells: [presentation(79), presentation(0), presentation(40)],
+      primaryActionCells: [],
+      secondaryActionCells: [],
     });
     expect(
       packets.slice(0, -1).flatMap((packet) =>
@@ -142,6 +146,8 @@ describe("generic 80-cell HID framing", () => {
         leaseMillis: 10_000,
         brightness: 48,
         cells: [],
+        primaryActionCells: [],
+        secondaryActionCells: [],
       }),
     ).toEqual([
       expect.objectContaining({

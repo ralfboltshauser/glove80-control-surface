@@ -20,9 +20,9 @@ describe("runtime IPC command validation", () => {
       { kind: "expireScene" },
       { kind: "resetSimulation" },
       { kind: "acknowledge", cellId: 40 },
-      { kind: "beginInteraction", epoch: 1 },
+      { kind: "beginInteraction", epoch: 1, bank: "primary" },
       { kind: "endInteraction", epoch: 1 },
-      { kind: "invokeCell", epoch: 1, cellId: 40 },
+      { kind: "invokeCell", epoch: 1, cellId: 40, bank: "secondary" },
     ];
 
     for (const command of commands) {

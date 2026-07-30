@@ -32,7 +32,7 @@ export function InteractionHud({
 }: InteractionHudProps) {
   const controlLabel = simulatedSource
     ? "Control layer preview"
-    : "Control armed";
+    : `${board.interactionBank === "secondary" ? "Secondary" : "Primary"} actions held`;
   const adaptive = board.slots.length > 12;
   const occupied = board.slots.filter((slot) => slot.tile).length;
   const visibleSlots = adaptive
@@ -125,7 +125,9 @@ export function InteractionHud({
       <p className="interaction-hud__action-copy" id="hud-action-copy">
         {simulatedSource
           ? "Select an occupied slot to simulate its open command. This preview does not launch Codex or write to a keyboard."
-          : "Control is armed for one action. Press and release one labeled keyboard key, or press Magic+1 again to cancel; normal typing then resumes."}
+          : board.interactionBank === "secondary"
+            ? "Keep ↓ held and press a lit task key to acknowledge its completed or failed result. Release ↓ to resume normal typing."
+            : "Keep ↑ held and press a lit task key to open that task in Codex. Release ↑ to resume normal typing."}
       </p>
       <div
         className="interaction-hud__feedback"

@@ -54,7 +54,7 @@ function view(revision: number): AppViewState {
     },
     device: {
       capabilities: {
-        protocolVersion: 2,
+        protocolVersion: 3,
         topologyId: "glove80-rgb-80-v1",
         availableCells: [],
         supportsInputEvents: true,

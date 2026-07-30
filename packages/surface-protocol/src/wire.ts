@@ -7,6 +7,7 @@ import {
   validateCapabilities,
   validatePresentation,
   type CellEventKind,
+  type ActionBank,
   type CellId,
   type CellPresentation,
   type DeviceCapabilities,
@@ -18,7 +19,7 @@ import {
 
 const MAGIC_0 = 0x47;
 const MAGIC_1 = 0x38;
-const VERSION = 2;
+const VERSION = 3;
 const HEADER_BYTES = 8;
 const CHECKSUM_BYTES = 4;
 const MAX_PAYLOAD_BYTES = 64 - HEADER_BYTES - CHECKSUM_BYTES;
@@ -124,6 +125,8 @@ export type Packet =
       readonly leaseMillis: number;
       readonly brightness: number;
       readonly sceneChecksum: number;
+      readonly primaryActionCells: readonly CellId[];
+      readonly secondaryActionCells: readonly CellId[];
     }
   | { readonly kind: PacketKind.CloseSession; readonly sessionId: SessionId }
   | {
@@ -145,6 +148,7 @@ export type Packet =
       readonly sessionId: SessionId;
       readonly eventSequence: number;
       readonly interactionEpoch: number;
+      readonly bank: ActionBank;
     }
   | {
       readonly kind: PacketKind.CellEvent;
@@ -153,6 +157,7 @@ export type Packet =
       readonly interactionEpoch: number;
       readonly cellId: CellId;
       readonly eventKind: CellEventKind;
+      readonly bank: ActionBank;
     }
   | {
       readonly kind: PacketKind.SceneExpired;
@@ -333,6 +338,8 @@ function encodePayload(writer: ByteWriter, packet: Packet): void {
         packet.sceneChecksum,
       );
       assertUnsigned(packet.brightness, 0xff, "brightness");
+      const primaryMask = encodeCellBitmap(packet.primaryActionCells);
+      const secondaryMask = encodeCellBitmap(packet.secondaryActionCells);
       writer
         .u32(validateSession(packet.sessionId))
         .u32(validateGeneration(packet.generation))
@@ -340,7 +347,9 @@ function encodePayload(writer: ByteWriter, packet: Packet): void {
         .u8(packet.totalCells)
         .u32(packet.leaseMillis)
         .u8(packet.brightness)
-        .u32(packet.sceneChecksum);
+        .u32(packet.sceneChecksum)
+        .raw(primaryMask)
+        .raw(secondaryMask);
       return;
     case PacketKind.CloseSession:
       writer.u32(validateSession(packet.sessionId));
@@ -379,7 +388,8 @@ function encodePayload(writer: ByteWriter, packet: Packet): void {
       writer
         .u32(validateSession(packet.sessionId))
         .u32(packet.eventSequence)
-        .u32(packet.interactionEpoch);
+        .u32(packet.interactionEpoch)
+        .u8(actionBankToWire(packet.bank));
       return;
     case PacketKind.CellEvent:
       validateEventSequence(packet.eventSequence);
@@ -389,7 +399,8 @@ function encodePayload(writer: ByteWriter, packet: Packet): void {
         .u32(packet.eventSequence)
         .u32(packet.interactionEpoch)
         .u8(cellId(packet.cellId))
-        .u8(packet.eventKind === "down" ? 0 : 1);
+        .u8(packet.eventKind === "down" ? 0 : 1)
+        .u8(actionBankToWire(packet.bank));
       return;
     case PacketKind.SceneExpired:
       writer
@@ -444,7 +455,7 @@ function decodePayload(kind: PacketKind, bytes: Uint8Array): Packet {
     case PacketKind.SceneFragment:
       return { kind, fragment: decodeFragment(reader) };
     case PacketKind.SceneCommit: {
-      reader.expectLength(19);
+      reader.expectLength(39);
       const fragmentCount = reader.u8(8);
       const totalCells = reader.u8(9);
       const leaseMillis = reader.u32(10);
@@ -459,6 +470,8 @@ function decodePayload(kind: PacketKind, bytes: Uint8Array): Packet {
         leaseMillis,
         brightness: reader.u8(14),
         sceneChecksum: checksum,
+        primaryActionCells: decodeCellBitmap(reader.slice(19, 29)),
+        secondaryActionCells: decodeCellBitmap(reader.slice(29, 39)),
       };
     }
     case PacketKind.CloseSession:
@@ -499,7 +512,7 @@ function decodePayload(kind: PacketKind, bytes: Uint8Array): Packet {
     }
     case PacketKind.InteractionModeEntered:
     case PacketKind.InteractionModeExited: {
-      reader.expectLength(12);
+      reader.expectLength(13);
       const eventSequence = reader.u32(4);
       const interactionEpoch = reader.u32(8);
       validateEventSequence(eventSequence);
@@ -509,10 +522,11 @@ function decodePayload(kind: PacketKind, bytes: Uint8Array): Packet {
         sessionId: sessionId(reader.u32(0)),
         eventSequence,
         interactionEpoch,
+        bank: actionBankFromWire(reader.u8(12)),
       };
     }
     case PacketKind.CellEvent: {
-      reader.expectLength(14);
+      reader.expectLength(15);
       const eventSequence = reader.u32(4);
       const interactionEpoch = reader.u32(8);
       validateEventSequence(eventSequence);
@@ -525,6 +539,7 @@ function decodePayload(kind: PacketKind, bytes: Uint8Array): Packet {
         interactionEpoch,
         cellId: cellId(reader.u8(12)),
         eventKind,
+        bank: actionBankFromWire(reader.u8(14)),
       };
     }
     case PacketKind.SceneExpired:
@@ -972,6 +987,45 @@ function cellEventKindFromWire(value: number): CellEventKind {
   if (value === 0) return "down";
   if (value === 1) return "up";
   throw new WireError("unknownCellEventKind", `cell event kind ${value} is unknown`, value);
+}
+
+function actionBankToWire(value: ActionBank): number {
+  if (value === "primary") return 0;
+  if (value === "secondary") return 1;
+  throw new WireError("nonZeroReservedBits", `action bank ${String(value)} is unknown`);
+}
+
+function actionBankFromWire(value: number): ActionBank {
+  if (value === 0) return "primary";
+  if (value === 1) return "secondary";
+  throw new WireError("nonZeroReservedBits", `action bank ${value} is unknown`, value);
+}
+
+function encodeCellBitmap(cells: readonly CellId[]): Uint8Array {
+  const bitmap = new Uint8Array(CAPABILITY_BITMAP_BYTES);
+  for (const value of cells) {
+    const cell = Number(cellId(value));
+    const offset = Math.floor(cell / 8);
+    const bit = 1 << (cell % 8);
+    if ((bitmap[offset]! & bit) !== 0) {
+      throw new WireError("invalidCommit", `action mask repeats cell ${cell}`);
+    }
+    bitmap[offset] = bitmap[offset]! | bit;
+  }
+  return bitmap;
+}
+
+function decodeCellBitmap(bitmap: Uint8Array): readonly CellId[] {
+  if (bitmap.length !== CAPABILITY_BITMAP_BYTES) {
+    throw new WireError("invalidCommit", "action mask has the wrong size");
+  }
+  const cells: CellId[] = [];
+  for (let value = 0; value < GLOVE80_CELL_COUNT; value += 1) {
+    if ((bitmap[Math.floor(value / 8)]! & (1 << (value % 8))) !== 0) {
+      cells.push(cellId(value));
+    }
+  }
+  return cells;
 }
 
 function deviceErrorToWire(value: DeviceErrorCode): number {

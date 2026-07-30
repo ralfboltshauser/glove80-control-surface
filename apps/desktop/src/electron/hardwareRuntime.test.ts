@@ -182,12 +182,15 @@ describe("hardware runtime composition", () => {
       green: 199,
       blue: 89,
     });
+    expect(surface.desired?.primaryActionCells).toEqual([0]);
+    expect(surface.desired?.secondaryActionCells).toEqual([0]);
 
     surface.emitEvent({
       kind: "interactionModeEntered",
       sessionId: sessionId(7),
       sequence: 1,
       interactionEpoch: 91,
+      bank: "primary",
     });
     surface.emitEvent({
       kind: "cell",
@@ -197,6 +200,7 @@ describe("hardware runtime composition", () => {
         interactionEpoch: 91,
         cellId: cellId(0),
         kind: "down",
+        bank: "primary",
       },
     });
     await waitFor(() => opened.length === 1);
@@ -214,6 +218,7 @@ describe("hardware runtime composition", () => {
       sessionId: sessionId(7),
       sequence: 3,
       interactionEpoch: 91,
+      bank: "primary",
     });
     await waitFor(
       () =>
@@ -223,6 +228,52 @@ describe("hardware runtime composition", () => {
     );
     await runtime.stop();
     expect(surface.disableCount).toBe(1);
+  });
+
+  it("routes the secondary bank to acknowledgement without opening Codex", async () => {
+    const opened: string[] = [];
+    const surface = new FakeSurface();
+    const runtime = new HardwareRuntime(
+      new SimulationRuntime(new MemoryStore(configuration([0])), {
+        initialTasks: [task("thread-2", "Review", "completedUnread")],
+        invokeTask: async (selected) => {
+          opened.push(selected.resourceId);
+        },
+      }),
+      surface,
+      () => undefined,
+    );
+    await runtime.bootstrap();
+
+    surface.emitEvent({
+      kind: "interactionModeEntered",
+      sessionId: sessionId(8),
+      sequence: 1,
+      interactionEpoch: 92,
+      bank: "secondary",
+    });
+    surface.emitEvent({
+      kind: "cell",
+      event: {
+        sessionId: sessionId(8),
+        sequence: 2,
+        interactionEpoch: 92,
+        cellId: cellId(0),
+        kind: "down",
+        bank: "secondary",
+      },
+    });
+    await waitFor(
+      () => surface.desired?.secondaryActionCells.length === 0,
+    );
+
+    expect(opened).toEqual([]);
+    expect(surface.desired?.cells[0]?.color).toEqual({
+      red: 220,
+      green: 226,
+      blue: 235,
+    });
+    await runtime.stop();
   });
 
   it("ignores physical interaction entry until a board exists", async () => {
@@ -239,6 +290,7 @@ describe("hardware runtime composition", () => {
       sessionId: sessionId(8),
       sequence: 1,
       interactionEpoch: 92,
+      bank: "secondary",
     });
     const assigned = await runtime.dispatch({
       kind: "assignTaskBoard",

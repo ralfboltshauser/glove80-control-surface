@@ -231,6 +231,8 @@ export function packetsForCompleteScene(scene: DesiredScene): Packet[] {
       leaseMillis: scene.leaseMillis,
       brightness: scene.brightness,
       sceneChecksum: sceneChecksum([]),
+      primaryActionCells: scene.primaryActionCells,
+      secondaryActionCells: scene.secondaryActionCells,
     }];
   }
   const fragmentCount = Math.ceil(
@@ -262,6 +264,8 @@ export function packetsForCompleteScene(scene: DesiredScene): Packet[] {
     leaseMillis: scene.leaseMillis,
     brightness: scene.brightness,
     sceneChecksum: sceneChecksum(canonicalCells),
+    primaryActionCells: scene.primaryActionCells,
+    secondaryActionCells: scene.secondaryActionCells,
   });
   return packets;
 }

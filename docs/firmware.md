@@ -22,14 +22,14 @@ Host to keyboard:
 
 ```text
 OPEN(session_id, lease)
-SCENE_CHUNK(session_id, generation, flags, cell_styles)
+SCENE_CHUNK(session_id, generation, flags, cell_styles, primary_mask, secondary_mask)
 CLOSE(session_id)
 ```
 
 Keyboard to host:
 
 ```text
-SURFACE_EVENT(session_id, event_sequence, mode_epoch, type, cell)
+SURFACE_EVENT(session_id, event_sequence, mode_epoch, bank, type, cell)
 ```
 
 `type` initially covers mode enter/exit and key down/up. The feature report
@@ -68,27 +68,26 @@ NO_SESSION
 
 DISPLAY
   ├─ committed scene → DISPLAY
-  ├─ Magic+1 → INTERACTIVE
+  ├─ hold ↑ → INTERACTIVE(primary)
+  ├─ hold ↓ → INTERACTIVE(secondary)
   └─ CLOSE or expiry → NO_SESSION
 
 INTERACTIVE
   ├─ surface keys → vendor down/up events
-  ├─ first surface-key release → DISPLAY
-  ├─ Magic+1 or five-second inactivity → DISPLAY
-  ├─ five-second held key → synthetic Up, then DISPLAY
+  ├─ modifier release → DISPLAY
+  ├─ second modifier → ordinary action in the first bank
+  ├─ 30-second fail-safe → DISPLAY
   └─ CLOSE or expiry → cancel surface gestures, then NO_SESSION
 ```
 
 Rules:
 
 - The generated control layer activates only while a valid session exists.
-- Magic+1 arms one action; ordinary Magic tap and hold behavior remains in the
-  preserved user layers.
+- Printed ↑ selects primary; printed ↓ selects secondary. Without a session
+  they remain `KP_DOT` and `KP_N0`.
 - An arm request without a live lease cannot enter Control.
-- One left indicator pulses while armed.
-- The first action-key release exits. Magic+1 cancels, five-second inactivity
-  auto-cancels, a five-second hold emits a matching synthetic Up before exit,
-  and exit is idempotent.
+- The held modifier, available action keys, and pressed action key render
+  locally. Release exits and exit is idempotent.
 - Expiry prevents all new surface presses and cancels already-started surface
   gestures; it never synthesizes ordinary typing for a consumed press.
 - Reboot and disconnect start in `NO_SESSION`.

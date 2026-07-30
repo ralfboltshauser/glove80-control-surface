@@ -84,7 +84,11 @@ describe("authoritative simulation runtime", () => {
       brightness: 32,
       reduceMotion: true,
     });
-    await first.dispatch({ kind: "beginInteraction", epoch: 8 });
+    await first.dispatch({
+      kind: "beginInteraction",
+      epoch: 8,
+      bank: "primary",
+    });
     await first.dispatch({ kind: "burst" });
 
     expect(JSON.stringify(store.value)).not.toMatch(
@@ -124,11 +128,16 @@ describe("authoritative simulation runtime", () => {
         detail: "Persisted task discovery is online.",
       },
     });
-    await runtime.dispatch({ kind: "beginInteraction", epoch: 4 });
+    await runtime.dispatch({
+      kind: "beginInteraction",
+      epoch: 4,
+      bank: "primary",
+    });
     const result = await runtime.dispatch({
       kind: "invokeCell",
       epoch: 4,
       cellId: 0,
+      bank: "primary",
     });
 
     expect(opened).toEqual(["019fae8a-5cb4-7e70-88d8-d0af1e99032c"]);
