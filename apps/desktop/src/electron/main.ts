@@ -28,6 +28,8 @@ import { parseRuntimeCommand } from "./commandValidation";
 import { isCodexThreadId } from "./codexProtocol";
 import { CodexTaskSource } from "./codexTaskSource";
 import { FileConfigurationStore } from "./fileConfigurationStore";
+import { discoverGlove80ReadOnly } from "./glove80Discovery";
+import { NodeHidTransport } from "./nodeHidTransport";
 
 let mainWindow: BrowserWindow | undefined;
 let runtime: SimulationRuntime | undefined;
@@ -38,6 +40,8 @@ app.setName("Glove80 Control Surface");
 
 if (process.argv.includes("--smoke-test")) {
   void runNativeModuleSmokeTest();
+} else if (process.argv.includes("--probe-device-read-only")) {
+  void runReadOnlyDeviceProbe();
 } else if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
@@ -273,6 +277,20 @@ async function runNativeModuleSmokeTest(): Promise<void> {
     app.exit(0);
   } catch (error) {
     console.error("Packaged native-module smoke test failed.", error);
+    app.exit(1);
+  }
+}
+
+async function runReadOnlyDeviceProbe(): Promise<void> {
+  try {
+    await app.whenReady();
+    const observations = await discoverGlove80ReadOnly(
+      new NodeHidTransport(),
+    );
+    console.log(JSON.stringify(observations, null, 2));
+    app.exit(0);
+  } catch (error) {
+    console.error("Read-only Glove80 probe failed.", error);
     app.exit(1);
   }
 }

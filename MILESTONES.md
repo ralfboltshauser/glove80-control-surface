@@ -146,35 +146,45 @@ adversarial reviews passed with no remaining blocker. Public CI run
 passed TypeScript checks plus packaged Electron and native HID smoke tests on
 macOS, Windows, and Linux.
 
-## Milestone 3 — existing six-cell hardware path
+## Milestone 3 — complete 80-cell host path
 
-Status: **not started**
+Status: **complete**
 
 Deliver:
 
-- [ ] Import the proven report-4/report-5 protocol as a legacy capability
-      adapter and golden fixture.
-- [ ] A cross-platform HID transport boundary with fake transports for all
-      error paths.
-- [ ] USB discovery and safe matching by vendor/product/report capabilities,
+- [x] Preserve the proven report-4/report-5 six-cell protocol only as a frozen
+      compatibility fixture. It is not a product mode or an architectural
+      constraint.
+- [x] A complete 80-cell `SurfaceDevice` implementation using the generic
+      versioned protocol already exercised by the simulator.
+- [x] A cross-platform HID boundary with fake transports for all error paths.
+- [x] USB discovery and safe matching by vendor/product/capability handshake,
       without assuming a serial is present.
-- [ ] Lease, expiry, sequence, reconnect, coalescing, readback, desired/applied,
-      and pause/clear behavior.
-- [ ] Platform guidance for macOS permissions, Windows device access, and a
+- [x] Complete-scene fragmentation, atomic commit, lease, expiry, sequence,
+      reconnect, coalescing, acknowledgements, desired/applied divergence,
+      independent half status, and pause/clear behavior.
+- [x] Platform guidance for macOS permissions, Windows device access, and a
       narrowly matched Linux udev rule.
 
 Acceptance:
 
 - Every transport transition passes against the fake.
-- On this Mac, read-only capability discovery identifies the currently flashed
-  experimental firmware.
+- The host sends and verifies complete scenes spanning arbitrary subsets of all
+  80 cells against the deterministic two-half fake.
+- On this Mac, read-only discovery reports the currently flashed six-cell
+  firmware honestly as legacy/incompatible with the 80-cell path.
 - Any live LED write is separately announced, bounded, reversible by expiry,
   and performed only after its scene is visible in the simulator.
 - No firmware flash occurs in this milestone.
 
+Local evidence is recorded in
+[Milestone 3 verification](docs/reviews/milestone-3-verification.md). The
+adversarial protocol findings were closed before the wire contract was handed
+to firmware.
+
 ## Milestone 4 — generic 80-cell firmware and interaction
 
-Status: **not started**
+Status: **in progress**
 
 Deliver:
 

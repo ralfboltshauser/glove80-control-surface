@@ -26,6 +26,7 @@ const CELL_WIRE_BYTES = 6;
 const FRAGMENT_HEADER_BYTES = 12;
 const CAPABILITY_BITMAP_BYTES = GLOVE80_CELL_COUNT / 8;
 const MAX_TOPOLOGY_ID_BYTES = 20;
+const MAX_FIRMWARE_BUILD_ID_BYTES = 8;
 
 export const MAX_PACKET_BYTES = 64;
 export const MAX_FRAGMENT_CELLS = Math.floor(
@@ -73,6 +74,14 @@ export enum SessionStatus {
   Unknown = 2,
 }
 
+export enum RightHalfStatus {
+  Absent = 0,
+  Incompatible = 1,
+  Syncing = 2,
+  Applied = 3,
+  PowerLimited = 4,
+}
+
 export interface SceneFragment {
   readonly sessionId: SessionId;
   readonly generation: SceneGeneration;
@@ -97,6 +106,7 @@ export type Packet =
       readonly leaseRemainingMillis: number;
       readonly centralGeneration?: SceneGeneration;
       readonly rightGeneration?: SceneGeneration;
+      readonly rightStatus: RightHalfStatus;
       readonly interactionEpoch?: number;
     }
   | {
@@ -158,6 +168,7 @@ type WireErrorCode =
   | "unknownCommandKind"
   | "unknownCommandResult"
   | "unknownSessionStatus"
+  | "unknownRightHalfStatus"
   | "unknownDeviceError"
   | "invalidErrorRequestKind"
   | "invalidPayloadLength"
@@ -294,6 +305,7 @@ function encodePayload(writer: ByteWriter, packet: Packet): void {
         packet.leaseRemainingMillis,
         packet.centralGeneration,
         packet.rightGeneration,
+        packet.rightStatus,
         packet.interactionEpoch,
       );
       writer
@@ -302,6 +314,7 @@ function encodePayload(writer: ByteWriter, packet: Packet): void {
         .u32(packet.leaseRemainingMillis)
         .u32(packet.centralGeneration ?? 0)
         .u32(packet.rightGeneration ?? 0)
+        .u8(packet.rightStatus)
         .u32(packet.interactionEpoch ?? 0);
       return;
     case PacketKind.OpenSession:
@@ -395,17 +408,19 @@ function decodePayload(kind: PacketKind, bytes: Uint8Array): Packet {
     case PacketKind.CapabilityResponse:
       return decodeCapabilities(reader);
     case PacketKind.StatusResponse: {
-      reader.expectLength(21);
+      reader.expectLength(22);
       const status = sessionStatusFromWire(reader.u8(4));
       const leaseRemainingMillis = reader.u32(5);
       const centralGeneration = optionalGeneration(reader.u32(9));
       const rightGeneration = optionalGeneration(reader.u32(13));
-      const interactionEpoch = optionalNonzero(reader.u32(17));
+      const rightStatus = rightHalfStatusFromWire(reader.u8(17));
+      const interactionEpoch = optionalNonzero(reader.u32(18));
       validateStatus(
         status,
         leaseRemainingMillis,
         centralGeneration,
         rightGeneration,
+        rightStatus,
         interactionEpoch,
       );
       return {
@@ -415,6 +430,7 @@ function decodePayload(kind: PacketKind, bytes: Uint8Array): Packet {
         leaseRemainingMillis,
         centralGeneration,
         rightGeneration,
+        rightStatus,
         interactionEpoch,
       };
     }
@@ -528,7 +544,12 @@ function encodeCapabilities(
 ): void {
   validateCapabilities(capabilities);
   const topology = asciiBytes(capabilities.topologyId);
-  if (topology.length > MAX_TOPOLOGY_ID_BYTES) {
+  const build = asciiBytes(capabilities.firmwareBuildId);
+  if (
+    topology.length > MAX_TOPOLOGY_ID_BYTES ||
+    build.length === 0 ||
+    build.length > MAX_FIRMWARE_BUILD_ID_BYTES
+  ) {
     throw new WireError("invalidWireCapabilities", "wire capability fields are invalid");
   }
 
@@ -536,7 +557,9 @@ function encodeCapabilities(
     .u32(validateSession(id))
     .u16(capabilities.protocolVersion)
     .u8(topology.length)
-    .raw(topology);
+    .raw(topology)
+    .u8(build.length)
+    .raw(build);
 
   const bitmap = new Uint8Array(CAPABILITY_BITMAP_BYTES);
   for (const cell of capabilities.availableCells) {
@@ -558,7 +581,8 @@ function encodeCapabilities(
 }
 
 function decodeCapabilities(reader: ByteReader): Packet {
-  const fixedBytes = 4 + 2 + 1 + CAPABILITY_BITMAP_BYTES + 1 + 1 + 1 + 4 + 1;
+  const fixedBytes =
+    4 + 2 + 1 + 1 + CAPABILITY_BITMAP_BYTES + 1 + 1 + 1 + 4 + 1;
   if (reader.length < fixedBytes) {
     throw invalidPayloadLength(reader.length);
   }
@@ -566,11 +590,21 @@ function decodeCapabilities(reader: ByteReader): Packet {
   if (topologyLength > MAX_TOPOLOGY_ID_BYTES) {
     throw new WireError("invalidWireCapabilities", "wire capability fields are invalid");
   }
-  reader.expectLength(fixedBytes + topologyLength);
   const topologyStart = 7;
   const topologyEnd = topologyStart + topologyLength;
   const topologyId = asciiString(reader.slice(topologyStart, topologyEnd));
-  const bitmapStart = topologyEnd;
+  const buildLength = reader.u8(topologyEnd);
+  if (
+    buildLength === 0 ||
+    buildLength > MAX_FIRMWARE_BUILD_ID_BYTES
+  ) {
+    throw new WireError("invalidWireCapabilities", "wire capability fields are invalid");
+  }
+  reader.expectLength(fixedBytes + topologyLength + buildLength);
+  const buildStart = topologyEnd + 1;
+  const buildEnd = buildStart + buildLength;
+  const firmwareBuildId = asciiString(reader.slice(buildStart, buildEnd));
+  const bitmapStart = buildEnd;
   const availableCells: CellId[] = [];
   for (let byteIndex = 0; byteIndex < CAPABILITY_BITMAP_BYTES; byteIndex += 1) {
     const byte = reader.u8(bitmapStart + byteIndex);
@@ -598,6 +632,7 @@ function decodeCapabilities(reader: ByteReader): Packet {
   const capabilities: DeviceCapabilities = {
     protocolVersion: reader.u16(4),
     topologyId,
+    firmwareBuildId,
     availableCells,
     supportsInputEvents: (featureFlags & 1) !== 0,
     supportsRightHalfAcknowledgement: (featureFlags & 2) !== 0,
@@ -699,14 +734,24 @@ export function validateFragment(fragment: SceneFragment): void {
       carried,
     );
   }
+  const exactFragmentCount = Math.ceil(total / MAX_FRAGMENT_CELLS);
+  const exactCarried =
+    fragment.fragmentIndex === exactFragmentCount - 1
+      ? total - fragment.fragmentIndex * MAX_FRAGMENT_CELLS
+      : MAX_FRAGMENT_CELLS;
   if (
-    fragment.fragmentCount > total ||
-    fragment.fragmentCount * MAX_FRAGMENT_CELLS < total
+    fragment.fragmentCount !== exactFragmentCount ||
+    carried !== exactCarried
   ) {
     throw new WireError(
       "invalidFragmentLayout",
-      `fragment count ${fragment.fragmentCount} cannot carry ${total} cells`,
-      { fragments: fragment.fragmentCount, totalCells: total },
+      `fragment ${fragment.fragmentIndex} does not use the canonical layout for ${total} cells`,
+      {
+        fragments: fragment.fragmentCount,
+        carried,
+        expectedFragments: exactFragmentCount,
+        expectedCarried: exactCarried,
+      },
     );
   }
   const cells = new Set<number>();
@@ -754,17 +799,28 @@ function validateStatus(
   leaseRemainingMillis: number,
   centralGeneration?: SceneGeneration,
   rightGeneration?: SceneGeneration,
+  rightStatus: RightHalfStatus = RightHalfStatus.Absent,
   interactionEpoch?: number,
 ): void {
   assertUnsigned(leaseRemainingMillis, 0xffff_ffff, "remaining lease");
   validateGenerationOrder(centralGeneration, rightGeneration);
   if (interactionEpoch !== undefined) validateInteractionEpoch(interactionEpoch);
-  if (status === SessionStatus.Active && leaseRemainingMillis > 0) return;
+  if (status === SessionStatus.Active && leaseRemainingMillis > 0) {
+    if (
+      rightStatus === RightHalfStatus.Applied
+        ? centralGeneration !== undefined &&
+          rightGeneration === centralGeneration
+        : rightGeneration === undefined
+    ) {
+      return;
+    }
+  }
   if (
     (status === SessionStatus.Expired || status === SessionStatus.Unknown) &&
     leaseRemainingMillis === 0 &&
     centralGeneration === undefined &&
     rightGeneration === undefined &&
+    rightStatus === RightHalfStatus.Absent &&
     interactionEpoch === undefined
   ) {
     return;
@@ -823,10 +879,8 @@ function validateGenerationOrder(
   if (centralGeneration !== undefined) validateGeneration(centralGeneration);
   if (rightGeneration !== undefined) validateGeneration(rightGeneration);
   if (
-    (centralGeneration === undefined && rightGeneration !== undefined) ||
-    (centralGeneration !== undefined &&
-      rightGeneration !== undefined &&
-      rightGeneration > centralGeneration)
+    centralGeneration === undefined &&
+    rightGeneration !== undefined
   ) {
     throw new WireError(
       "invalidGenerationState",
@@ -891,6 +945,17 @@ function sessionStatusFromWire(value: number): SessionStatus {
   throw new WireError("unknownSessionStatus", `session status ${value} is unknown`, value);
 }
 
+function rightHalfStatusFromWire(value: number): RightHalfStatus {
+  if (value >= RightHalfStatus.Absent && value <= RightHalfStatus.PowerLimited) {
+    return value as RightHalfStatus;
+  }
+  throw new WireError(
+    "unknownRightHalfStatus",
+    `right-half status ${value} is unknown`,
+    value,
+  );
+}
+
 function effectToWire(value: EffectKind): number {
   if (value === "solid") return 0;
   if (value === "pulse") return 1;
@@ -921,6 +986,8 @@ function deviceErrorToWire(value: DeviceErrorCode): number {
       return 3;
     case "electricalLimit":
       return 4;
+    case "sessionBusy":
+      return 5;
   }
 }
 
@@ -931,6 +998,7 @@ function deviceErrorFromWire(value: number): DeviceErrorCode {
     "sessionExpired",
     "incompatibleRightHalf",
     "electricalLimit",
+    "sessionBusy",
   ];
   const code = values[value];
   if (code !== undefined) return code;

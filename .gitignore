@@ -2,6 +2,7 @@
 .idea/
 .vscode/
 node_modules/
+.firmware-work/
 dist/
 dist-electron/
 build/

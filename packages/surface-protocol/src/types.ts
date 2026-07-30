@@ -91,6 +91,7 @@ export interface CellPresentation {
 export interface DeviceCapabilities {
   readonly protocolVersion: number;
   readonly topologyId: string;
+  readonly firmwareBuildId: string;
   readonly availableCells: readonly CellId[];
   readonly supportsInputEvents: boolean;
   readonly supportsRightHalfAcknowledgement: boolean;
@@ -104,6 +105,7 @@ export function simulatedGlove80Capabilities(): DeviceCapabilities {
   return {
     protocolVersion: PROTOCOL_VERSION,
     topologyId: "glove80-rgb-80-v1",
+    firmwareBuildId: "g80cs001",
     availableCells: Array.from({ length: GLOVE80_CELL_COUNT }, (_, value) => cellId(value)),
     supportsInputEvents: true,
     supportsRightHalfAcknowledgement: true,
@@ -124,6 +126,12 @@ export function validateCapabilities(capabilities: DeviceCapabilities): void {
   }
   if (capabilities.topologyId.trim() === "") {
     throw new ProtocolError("emptyTopologyId", "topology ID cannot be empty");
+  }
+  if (capabilities.firmwareBuildId.trim() === "") {
+    throw new ProtocolError(
+      "invalidCapabilities",
+      "firmware build ID cannot be empty",
+    );
   }
   if (
     !Number.isInteger(capabilities.maxSceneCells) ||
@@ -280,7 +288,8 @@ export type DeviceErrorCode =
   | "unsupportedVersion"
   | "sessionExpired"
   | "incompatibleRightHalf"
-  | "electricalLimit";
+  | "electricalLimit"
+  | "sessionBusy";
 
 export type DeviceEvent =
   | { readonly kind: "cell"; readonly event: CellEvent }
