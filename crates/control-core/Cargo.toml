@@ -9,7 +9,6 @@ version.workspace = true
 
 [dependencies]
 serde.workspace = true
-surface-protocol = { path = "../surface-protocol" }
-
-[dev-dependencies]
 serde_json.workspace = true
+surface-protocol = { path = "../surface-protocol" }
+thiserror.workspace = true
