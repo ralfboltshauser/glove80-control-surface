@@ -105,6 +105,11 @@ With the explicit live flag, all ten app-server tests pass, including one
 against the installed binary. The packaged native smoke test loaded HIDAPI
 `0.15.0` without enumerating devices.
 
+Public CI run
+[`30545697391`](https://github.com/ralfboltshauser/glove80-control-surface/actions/runs/30545697391)
+passed TypeScript checks plus packaged Electron and native HID smoke tests on
+macOS, Windows, and Linux.
+
 ## Visual evidence
 
 `docs/screenshots/milestone-2/live-codex-packaged-dark.png` is the signed

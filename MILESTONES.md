@@ -106,7 +106,7 @@ reviews all passed with no remaining blocker. See
 
 ## Milestone 2 — real Codex task board
 
-Status: **reviewing**
+Status: **complete**
 
 Deliver:
 
@@ -141,8 +141,10 @@ Acceptance:
 
 Local implementation evidence is recorded in
 [Milestone 2 verification](docs/reviews/milestone-2-verification.md). The
-milestone remains in review until the adversarial findings are closed and
-cross-platform package CI passes.
+adversarial reviews passed with no remaining blocker. Public CI run
+[`30545697391`](https://github.com/ralfboltshauser/glove80-control-surface/actions/runs/30545697391)
+passed TypeScript checks plus packaged Electron and native HID smoke tests on
+macOS, Windows, and Linux.
 
 ## Milestone 3 — existing six-cell hardware path
 
