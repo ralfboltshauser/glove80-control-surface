@@ -25,7 +25,7 @@ hardware, Codex, or platform behavior changes an assumption.
 
 ## Milestone 0 — evidence, architecture, and workspace
 
-Status: **in progress**
+Status: **complete**
 
 Deliver:
 
@@ -36,11 +36,11 @@ Deliver:
 - [x] Adversarially compare Tauri, Electron, Slint, Flutter, Avalonia, and
       Wails against HID, child-process, updater, accessibility, and packaging
       requirements.
-- [ ] Record the desktop-stack decision and correct macOS-only/one-process
+- [x] Record the desktop-stack decision and correct macOS-only/one-process
       assumptions throughout the documentation.
-- [ ] Initialize the Cargo + pnpm monorepo with a bootable Tauri shell.
-- [ ] Add cross-platform CI for Rust tests/checks and frontend checks.
-- [ ] Run the milestone review and close every blocking finding.
+- [x] Initialize the Cargo + pnpm monorepo with a bootable Tauri shell.
+- [x] Add cross-platform CI for Rust tests/checks and frontend checks.
+- [x] Run the milestone review and close every blocking finding.
 
 Acceptance:
 
@@ -56,9 +56,14 @@ pnpm --filter @glove80-control-surface/desktop build
 The Tauri shell must boot on this Mac. CI must cover macOS, Windows, and Linux
 without claiming untested platform-specific HUD or HID behavior.
 
+Evidence: public CI run
+[`30518198882`](https://github.com/ralfboltshauser/glove80-control-surface/actions/runs/30518198882)
+passed the frontend job and native no-bundle Tauri builds on macOS 14, Ubuntu
+22.04, and Windows for commit `e8178c4`.
+
 ## Milestone 1 — simulated product vertical slice
 
-Status: **not started**
+Status: **in progress**
 
 Deliver:
 

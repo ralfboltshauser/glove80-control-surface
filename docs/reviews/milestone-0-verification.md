@@ -45,9 +45,12 @@ pnpm --filter @glove80-control-surface/desktop tauri build --debug --no-bundle
 git diff --check
 ```
 
-## Remaining gate
+## CI gate
 
-Milestone 0 is complete only after the public CI matrix performs the native
-Tauri build on macOS, Windows, and Linux successfully. Milestone 1 owns the
-stateful simulator, validated topology, persistent editing, and desired/applied
-state.
+Public CI run
+[`30518198882`](https://github.com/ralfboltshauser/glove80-control-surface/actions/runs/30518198882)
+passed the frontend job and native no-bundle Tauri builds on macOS 14, Ubuntu
+22.04, and Windows for commit `e8178c4`.
+
+Milestone 1 owns the stateful simulator, validated topology, persistent
+editing, and desired/applied state.
