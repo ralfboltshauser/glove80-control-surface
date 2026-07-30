@@ -1,0 +1,62 @@
+{
+  "releaseId": "m4-alpha1",
+  "protocolVersion": 2,
+  "buildId": "g80m4a01",
+  "topologyId": "glove80-rgb-80-v1",
+  "hardwareValidated": false,
+  "source": {
+    "moergoZmkCommit": "2f73a230e2fc7b2bd64a9736181e87bf54338131",
+    "patch": "firmware/patches/0001-leased-glove80-control-surface.patch",
+    "patchSha256": "c67573455e2e5fe4473ef22b937eeddb7a6390e908cd07994d2f5e69c2f33917",
+    "sourceDiffSha256": "39023308788d4f4680174c8a5e5736027724f2bdc541c876f9fe98b0fc8e2364",
+    "zephyrCommit": "dacab4875df72109b96cc8977547a0dc04875bcd",
+    "zephyrSdk": "0.16.3"
+  },
+  "layout": {
+    "name": "Ralf Custom Swiss v8",
+    "uuid": "fe5af554-f9e7-4db1-a4dc-e99d817603fd",
+    "sourceKeymapSha256": "732b79ad73a3b93d74c5fc6d3002411a4dfd7e4338149b77922bad7105479410",
+    "layoutJsonSha256": "aa4de7a2e830fa70462cc3a6f1779b97c335de045edf5a7dbdb2ed9c156f91d3",
+    "derivedKeymapSha256": "a2b75bbdc59cb36636dc5cef4b8a4ab591e61381f30c4774e98851d99df44e45",
+    "preservedLayers": ["Base", "Lower", "Magic", "Factory"],
+    "generatedLayer": "Control"
+  },
+  "surface": {
+    "lh": {
+      "file": "glove80_surface_lh.uf2",
+      "bytes": 481792,
+      "sha256": "9e86d345fb722a76267715e57c86ff0ea8c08e552884e52b0e7893d0b822b9e8",
+      "uf2Family": "0x9807b007"
+    },
+    "rh": {
+      "file": "glove80_surface_rh.uf2",
+      "bytes": 369664,
+      "sha256": "d0b9cf96d6db73dbf4aead10fe96556d20f3b4fb03ba98003c35a97f1aed99f6",
+      "uf2Family": "0x9808b007"
+    }
+  },
+  "recovery": {
+    "meaning": "Clean pinned MoErgo firmware with the exact Ralf Custom Swiss v8 keymap; it is not a byte backup of the previously installed application.",
+    "lh": {
+      "file": "glove80_recovery_lh.uf2",
+      "bytes": 461312,
+      "sha256": "0863da85b17f06f17ecfac4fdac3560c0f56becdfaecd85e953fbc9404b53ceb",
+      "uf2Family": "0x9807b007"
+    },
+    "rh": {
+      "file": "glove80_recovery_rh.uf2",
+      "bytes": 363520,
+      "sha256": "cc95d8a91de3e3d9688b1f62fb77dd084ffa57ff0355a36fc0ea4143eb7f682c",
+      "uf2Family": "0x9808b007"
+    }
+  },
+  "flashPartition": {
+    "start": "0x26000",
+    "endExclusive": "0xec000",
+    "preservesStorageAndBootloader": true
+  },
+  "knownUncertainty": {
+    "rightLedOrder": "Host-side mirrored-PCB hypothesis; calibrate one low-brightness channel at a time.",
+    "rightLeaseTiming": "Relative clocks are not synchronized; firmware subtracts a one-second transfer reserve and retains a bounded 60-second maximum."
+  }
+}

@@ -271,6 +271,176 @@ describe("complete 80-cell surface device", () => {
     await surface.disable();
   });
 
+  it("delivers interaction events while idle and while a command response is pending", async () => {
+    const transport = new FakeFirmwareTransport([genericDescriptor]);
+    const scheduler = new FakeScheduler();
+    const surface = new GenericSurfaceDevice(
+      transport,
+      scheduler,
+      10_000,
+      () => sessionId(21),
+    );
+    const events: string[] = [];
+    surface.subscribeEvents((event) => events.push(event.kind));
+    await surface.setDesired(fullScene(9));
+    await surface.enable();
+
+    transport.emitDevicePacket(3, {
+      kind: PacketKind.InteractionModeEntered,
+      sessionId: sessionId(21),
+      eventSequence: 1,
+      interactionEpoch: 1,
+    });
+    await waitFor(() => events.length === 1);
+
+    const nextRequestSequence = transport.outputReports.length + 1;
+    transport.beforeNextResponse(
+      Uint8Array.from([1, 0, 0, 0, 0, 0, 0, 0, 0]),
+    );
+    transport.beforeNextResponse(
+      encodeGenericHidInput(nextRequestSequence, {
+        kind: PacketKind.CellEvent,
+        sessionId: sessionId(21),
+        eventSequence: 2,
+        interactionEpoch: 1,
+        cellId: cellId(0),
+        eventKind: "down",
+      }),
+    );
+    scheduler.advanceToNext();
+    await waitFor(
+      () =>
+        events.join(",") ===
+          "interactionModeEntered,cell" &&
+        surface.snapshot().leaseExpiresAtMillis === 15_000,
+    );
+    await surface.disable();
+  });
+
+  it("fails an interaction closed on orphaned or skipped events", async () => {
+    const transport = new FakeFirmwareTransport([genericDescriptor]);
+    const surface = new GenericSurfaceDevice(
+      transport,
+      new FakeScheduler(),
+      10_000,
+      () => sessionId(24),
+    );
+    const events: string[] = [];
+    surface.subscribeEvents((event) => events.push(event.kind));
+    await surface.setDesired(fullScene(1));
+    await surface.enable();
+
+    transport.emitDevicePacket(1, {
+      kind: PacketKind.CellEvent,
+      sessionId: sessionId(24),
+      eventSequence: 1,
+      interactionEpoch: 1,
+      cellId: cellId(0),
+      eventKind: "down",
+    });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(events).toEqual([]);
+
+    transport.emitDevicePacket(2, {
+      kind: PacketKind.InteractionModeEntered,
+      sessionId: sessionId(24),
+      eventSequence: 10,
+      interactionEpoch: 2,
+    });
+    transport.emitDevicePacket(3, {
+      kind: PacketKind.CellEvent,
+      sessionId: sessionId(24),
+      eventSequence: 12,
+      interactionEpoch: 2,
+      cellId: cellId(0),
+      eventKind: "down",
+    });
+    await waitFor(() => events.length === 2);
+    expect(events).toEqual([
+      "interactionModeEntered",
+      "interactionModeExited",
+    ]);
+    await surface.disable();
+  });
+
+  it("maps physical cells to LED channels and key positions back to physical cells", async () => {
+    const transport = new FakeFirmwareTransport([genericDescriptor]);
+    const surface = new GenericSurfaceDevice(
+      transport,
+      new FakeScheduler(),
+      10_000,
+      () => sessionId(22),
+    );
+    let eventCell: number | undefined;
+    surface.subscribeEvents((event) => {
+      if (event.kind === "cell") eventCell = Number(event.event.cellId);
+    });
+    await surface.setDesired({
+      generation: 1,
+      brightness: 32,
+      cells: [{
+        cellId: cellId(0),
+        color: { red: 1, green: 2, blue: 3 },
+        effect: "solid",
+      }],
+    });
+    await surface.enable();
+
+    expect(transport.appliedCells.map((cell) => Number(cell.cellId))).toEqual([
+      34,
+    ]);
+    transport.emitDevicePacket(4, {
+      kind: PacketKind.InteractionModeEntered,
+      sessionId: sessionId(22),
+      eventSequence: 1,
+      interactionEpoch: 1,
+    });
+    transport.emitDevicePacket(5, {
+      kind: PacketKind.CellEvent,
+      sessionId: sessionId(22),
+      eventSequence: 2,
+      interactionEpoch: 1,
+      cellId: cellId(5),
+      eventKind: "down",
+    });
+    await waitFor(() => eventCell !== undefined);
+    expect(eventCell).toBe(40);
+    await surface.disable();
+  });
+
+  it("turns an idle read failure into a bounded reconnect", async () => {
+    const transport = new FakeFirmwareTransport([genericDescriptor]);
+    const scheduler = new FakeScheduler();
+    const surface = new GenericSurfaceDevice(
+      transport,
+      scheduler,
+      10_000,
+      () => sessionId(23),
+    );
+    const events: string[] = [];
+    surface.subscribeEvents((event) => events.push(event.kind));
+    await surface.setDesired(fullScene(1));
+    await surface.enable();
+
+    transport.emitDevicePacket(1, {
+      kind: PacketKind.InteractionModeEntered,
+      sessionId: sessionId(23),
+      eventSequence: 1,
+      interactionEpoch: 1,
+    });
+    await waitFor(() => events.length === 1);
+    transport.failNextRead = true;
+    await waitFor(() => surface.snapshot().connection === "reconnecting");
+    expect(events).toEqual([
+      "interactionModeEntered",
+      "interactionModeExited",
+    ]);
+    scheduler.advanceToNext();
+    await waitFor(() => surface.snapshot().applied?.generation === 1);
+    expect(surface.snapshot().applied?.generation).toBe(1);
+    await surface.disable();
+  });
+
   it("retains the newest desired generation through a cable failure and bounded reconnect", async () => {
     const transport = new FakeFirmwareTransport([genericDescriptor]);
     const scheduler = new FakeScheduler();
@@ -352,14 +522,17 @@ class FakeFirmwareTransport implements HidTransport {
   capabilities = simulatedGlove80Capabilities();
   rightConnected = true;
   failNextWrite = false;
+  failNextRead = false;
   openConnections = 0;
   private session?: SessionId;
   private sessionOpen = false;
   private leaseMillis = 0;
   private centralGeneration?: number;
   private rightGeneration?: number;
+  private interactionEpoch?: number;
   private fragments = new Map<number, SceneFragment>();
   private inputQueue: Uint8Array[] = [];
+  private beforeResponseQueue: Uint8Array[] = [];
   private blocked?: Deferred<void>;
   private started?: Deferred<void>;
 
@@ -391,6 +564,10 @@ class FakeFirmwareTransport implements HidTransport {
       },
       read: async () => {
         if (closed) throw new Error("Fake HID connection is closed.");
+        if (this.failNextRead) {
+          this.failNextRead = false;
+          throw new Error("Simulated idle USB read failure.");
+        }
         return this.inputQueue.shift();
       },
       write: async (report) => {
@@ -427,6 +604,22 @@ class FakeFirmwareTransport implements HidTransport {
   releaseWrite(): void {
     this.blocked?.resolve();
     this.blocked = undefined;
+  }
+
+  emitDevicePacket(sequence: number, packet: Packet): void {
+    if (packet.kind === PacketKind.InteractionModeEntered) {
+      this.interactionEpoch = packet.interactionEpoch;
+    } else if (
+      packet.kind === PacketKind.InteractionModeExited ||
+      packet.kind === PacketKind.SceneExpired
+    ) {
+      this.interactionEpoch = undefined;
+    }
+    this.inputQueue.push(encodeGenericHidInput(sequence, packet));
+  }
+
+  beforeNextResponse(report: Uint8Array): void {
+    this.beforeResponseQueue.push(Uint8Array.from(report));
   }
 
   private handle(packet: Packet): Packet {
@@ -527,6 +720,7 @@ class FakeFirmwareTransport implements HidTransport {
           rightStatus: this.rightConnected
             ? RightHalfStatus.Applied
             : RightHalfStatus.Absent,
+          interactionEpoch: this.interactionEpoch,
         };
       case PacketKind.CloseSession:
         this.requireSession(packet.sessionId);
@@ -534,6 +728,7 @@ class FakeFirmwareTransport implements HidTransport {
         this.appliedCells = [];
         this.centralGeneration = undefined;
         this.rightGeneration = undefined;
+        this.interactionEpoch = undefined;
         return commandResult(
           packet.sessionId,
           CommandKind.CloseSession,
@@ -545,6 +740,8 @@ class FakeFirmwareTransport implements HidTransport {
   }
 
   private respond(sequence: number, packet: Packet): void {
+    this.inputQueue.push(...this.beforeResponseQueue);
+    this.beforeResponseQueue = [];
     const report = encodeGenericHidInput(sequence, packet);
     expect(report[0]).toBe(GENERIC_HID_INPUT_REPORT_ID);
     this.inputQueue.push(report);

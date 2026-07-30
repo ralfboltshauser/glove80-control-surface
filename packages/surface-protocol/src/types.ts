@@ -105,7 +105,7 @@ export function simulatedGlove80Capabilities(): DeviceCapabilities {
   return {
     protocolVersion: PROTOCOL_VERSION,
     topologyId: "glove80-rgb-80-v1",
-    firmwareBuildId: "g80cs001",
+    firmwareBuildId: "g80m4a01",
     availableCells: Array.from({ length: GLOVE80_CELL_COUNT }, (_, value) => cellId(value)),
     supportsInputEvents: true,
     supportsRightHalfAcknowledgement: true,

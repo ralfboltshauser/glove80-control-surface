@@ -3,6 +3,7 @@
 .vscode/
 node_modules/
 .firmware-work/
+.firmware-build/
 dist/
 dist-electron/
 build/

@@ -5,9 +5,11 @@ import {
   CommandResultCode,
   GENERIC_HID_CAPABILITY_FEATURE_REPORT_ID,
   GENERIC_HID_HOST_REPORT_BYTES,
+  GENERIC_HID_INPUT_REPORT_ID,
   PacketKind,
   RightHalfStatus,
   SessionStatus,
+  cellId,
   decodeGenericCapabilityFeature,
   decodeGenericHidInput,
   encodeGenericHidOutput,
@@ -21,10 +23,12 @@ import {
   type AppliedScene,
   type CellPresentation,
   type DeviceCapabilities,
+  type DeviceEvent,
   type Packet,
   type SceneGeneration,
   type SessionId,
 } from "@glove80-control-surface/surface-protocol";
+import glove80Topology from "../../../../firmware/topology/glove80-rgb-80-v1.json";
 
 import type {
   HidConnection,
@@ -38,7 +42,14 @@ const EXCHANGE_TIMEOUT_MILLIS = 1_500;
 const DEFAULT_LEASE_MILLIS = 10_000;
 const MIN_RECONNECT_MILLIS = 250;
 const MAX_RECONNECT_MILLIS = 8_000;
-const MAX_UNSOLICITED_PACKETS = 32;
+const POSITION_TO_PHYSICAL_CELL = validatedPermutation(
+  glove80Topology.zmkPositionToCell,
+  "zmkPositionToCell",
+);
+const PHYSICAL_CELL_TO_LED_CHANNEL = validatedPermutation(
+  glove80Topology.cellToLedChannel,
+  "cellToLedChannel",
+);
 
 export interface SurfaceScene {
   readonly generation: number;
@@ -98,13 +109,20 @@ export class GenericSurfaceDevice {
   private timer?: unknown;
   private drain?: Promise<void>;
   private drainAgain = false;
+  private connectionFailure?: Promise<void>;
   private lifecycleEpoch = 0;
+  private interactionEpoch?: number;
+  private interactionSequence?: number;
+  private readonly interactionPressed = new Set<number>();
   private snapshotValue: SurfaceDeviceSnapshot = {
     connection: "disabled",
     detail: "Real keyboard output is off.",
   };
   private readonly listeners = new Set<
     (snapshot: SurfaceDeviceSnapshot) => void
+  >();
+  private readonly eventListeners = new Set<
+    (event: DeviceEvent) => void
   >();
 
   constructor(
@@ -131,6 +149,11 @@ export class GenericSurfaceDevice {
   ): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  subscribeEvents(listener: (event: DeviceEvent) => void): () => void {
+    this.eventListeners.add(listener);
+    return () => this.eventListeners.delete(listener);
   }
 
   setDesired(scene: SurfaceScene | undefined): Promise<void> {
@@ -343,9 +366,18 @@ export class GenericSurfaceDevice {
       matches[0]!;
     const connection = await this.transport.open(descriptor.path);
     this.requireLifecycle(epoch);
-    const link = new HidPacketLink(connection);
     const candidateSession = this.session ?? this.createSessionId();
     const resumeOpenSession = this.sessionOpen;
+    this.resetInteraction();
+    let link!: HidPacketLink;
+    link = new HidPacketLink(
+      connection,
+      (packet) => this.publishDeviceEvent(packet, candidateSession),
+      (error) => {
+        if (this.link !== link || !this.enabled || this.paused) return;
+        void this.connectionFailed(error);
+      },
+    );
     try {
       const response = await link.exchange(
         this.nextPacketSequence(),
@@ -430,7 +462,14 @@ export class GenericSurfaceDevice {
       generation: sceneGeneration(scene.generation),
       leaseMillis: this.effectiveLeaseMillis(),
       brightness: scene.brightness,
-      cells: scene.cells,
+      cells: scene.cells
+        .map((cell) => ({
+          ...cell,
+          cellId: cellId(
+            PHYSICAL_CELL_TO_LED_CHANNEL[Number(cell.cellId)]!,
+          ),
+        }))
+        .sort((left, right) => Number(left.cellId) - Number(right.cellId)),
     };
     validateDesiredScene(desired, this.requireCapabilities());
     const packets = packetsForCompleteScene(desired);
@@ -560,6 +599,12 @@ export class GenericSurfaceDevice {
     ) {
       throw new Error("Keyboard status does not confirm the committed generation.");
     }
+    if (
+      this.interactionEpoch !== undefined &&
+      response.interactionEpoch !== this.interactionEpoch
+    ) {
+      this.invalidateInteraction(this.requireSession());
+    }
     return response;
   }
 
@@ -595,6 +640,16 @@ export class GenericSurfaceDevice {
   }
 
   private async connectionFailed(error: unknown): Promise<void> {
+    if (this.connectionFailure) return this.connectionFailure;
+    this.connectionFailure = this.handleConnectionFailure(error).finally(
+      () => {
+        this.connectionFailure = undefined;
+      },
+    );
+    return this.connectionFailure;
+  }
+
+  private async handleConnectionFailure(error: unknown): Promise<void> {
     await this.closeLink(true);
     this.applied = undefined;
     this.leaseExpiresAtMillis = undefined;
@@ -620,6 +675,11 @@ export class GenericSurfaceDevice {
   private async closeLink(preserveSession: boolean): Promise<void> {
     const link = this.link;
     this.link = undefined;
+    if (this.session) {
+      this.invalidateInteraction(this.session);
+    } else {
+      this.resetInteraction();
+    }
     if (!preserveSession) {
       this.session = undefined;
       this.sessionOpen = false;
@@ -674,67 +734,329 @@ export class GenericSurfaceDevice {
     this.snapshotValue = cloneSnapshot(snapshot);
     for (const listener of this.listeners) listener(this.snapshot());
   }
+
+  private publishDeviceEvent(
+    packet: Packet,
+    expectedSession = this.session,
+  ): void {
+    if (packet.kind === PacketKind.CellEvent) {
+      packet = {
+        ...packet,
+        cellId: cellId(
+          POSITION_TO_PHYSICAL_CELL[Number(packet.cellId)]!,
+        ),
+      };
+    }
+    if (
+      !expectedSession ||
+      packetSessionId(packet) !== expectedSession
+    ) {
+      return;
+    }
+    const event = packetToDeviceEvent(packet);
+    if (!event) return;
+    switch (event.kind) {
+      case "interactionModeEntered":
+        if (this.interactionEpoch !== undefined) {
+          this.invalidateInteraction(expectedSession);
+          return;
+        }
+        this.interactionEpoch = event.interactionEpoch;
+        this.interactionSequence = event.sequence;
+        this.interactionPressed.clear();
+        this.publishEvent(event);
+        return;
+      case "cell": {
+        const cell = Number(event.event.cellId);
+        if (
+          this.interactionEpoch !== event.event.interactionEpoch ||
+          !isNextEventSequence(
+            this.interactionSequence,
+            event.event.sequence,
+          ) ||
+          (event.event.kind === "down"
+            ? this.interactionPressed.has(cell)
+            : !this.interactionPressed.has(cell))
+        ) {
+          this.invalidateInteraction(expectedSession);
+          return;
+        }
+        this.interactionSequence = event.event.sequence;
+        if (event.event.kind === "down") {
+          this.interactionPressed.add(cell);
+        } else {
+          this.interactionPressed.delete(cell);
+        }
+        this.publishEvent(event);
+        return;
+      }
+      case "interactionModeExited":
+        if (
+          this.interactionEpoch !== event.interactionEpoch ||
+          !isNextEventSequence(this.interactionSequence, event.sequence)
+        ) {
+          this.invalidateInteraction(expectedSession);
+          return;
+        }
+        this.publishEvent(event);
+        this.resetInteraction();
+        return;
+      case "sceneExpired":
+        this.invalidateInteraction(expectedSession);
+        this.publishEvent(event);
+        return;
+      default:
+        this.publishEvent(event);
+    }
+  }
+
+  private invalidateInteraction(session: SessionId): void {
+    if (
+      this.interactionEpoch !== undefined &&
+      this.interactionSequence !== undefined
+    ) {
+      this.publishEvent({
+        kind: "interactionModeExited",
+        sessionId: session,
+        sequence: this.interactionSequence,
+        interactionEpoch: this.interactionEpoch,
+      });
+    }
+    this.resetInteraction();
+  }
+
+  private resetInteraction(): void {
+    this.interactionEpoch = undefined;
+    this.interactionSequence = undefined;
+    this.interactionPressed.clear();
+  }
+
+  private publishEvent(event: DeviceEvent): void {
+    for (const listener of this.eventListeners) listener(event);
+  }
+}
+
+function validatedPermutation(
+  candidate: readonly number[],
+  label: string,
+): readonly number[] {
+  if (
+    candidate.length !== 80 ||
+    [...candidate]
+      .sort((left, right) => left - right)
+      .some((value, index) => value !== index)
+  ) {
+    throw new Error(`${label} must be a permutation of 0 through 79.`);
+  }
+  return Object.freeze([...candidate]);
 }
 
 class HidPacketLink {
-  private busy = false;
+  private closed = false;
+  private pending?: {
+    readonly sequence: number;
+    readonly request: Packet;
+    readonly expected: PacketKind;
+    readonly resolve: (packet: Packet) => void;
+    readonly reject: (error: Error) => void;
+    readonly timeout: ReturnType<typeof setTimeout>;
+  };
 
-  constructor(private readonly connection: HidConnection) {}
+  constructor(
+    private readonly connection: HidConnection,
+    private readonly onEvent: (packet: Packet) => void,
+    private readonly onFatal: (error: Error) => void,
+  ) {
+    void this.readLoop();
+  }
 
   async exchange(
     sequence: number,
     request: Packet,
     expected: PacketKind,
   ): Promise<Packet> {
-    if (this.busy) {
+    if (this.closed) {
+      throw new Error("The HID link is closed.");
+    }
+    if (this.pending) {
       throw new Error("Only one bounded HID exchange may be active at a time.");
     }
-    this.busy = true;
-    try {
-      const deadline = Date.now() + EXCHANGE_TIMEOUT_MILLIS;
-      await this.connection.write(
-        encodeGenericHidOutput(sequence, request),
-      );
-      for (let count = 0; count < MAX_UNSOLICITED_PACKETS; count += 1) {
-        const remainingMillis = deadline - Date.now();
-        if (remainingMillis <= 0) {
-          throw new Error("Keyboard response timed out.");
-        }
-        const report = await this.connection.read(
-          remainingMillis,
-        );
-        if (!report) throw new Error("Keyboard response timed out.");
-        const [responseSequence, response] =
-          decodeGenericHidInput(report);
-        if (responseSequence !== sequence) continue;
-        if (packetSessionId(response) !== packetSessionId(request)) {
-          throw new Error("Keyboard response belongs to another session.");
-        }
-        if (response.kind === PacketKind.DeviceError) {
-          if (response.requestKind !== request.kind) {
-            throw new Error(
-              "Keyboard error response refers to another request.",
-            );
-          }
-          throw new Error(
-            `Keyboard reported ${response.code} for packet ${response.requestKind}.`,
+    return new Promise<Packet>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        if (this.pending?.sequence !== sequence) return;
+        this.pending = undefined;
+        reject(new Error("Keyboard response timed out."));
+      }, EXCHANGE_TIMEOUT_MILLIS);
+      this.pending = {
+        sequence,
+        request,
+        expected,
+        resolve,
+        reject,
+        timeout,
+      };
+      void this.connection
+        .write(encodeGenericHidOutput(sequence, request))
+        .catch((error: unknown) => {
+          if (this.pending?.sequence !== sequence) return;
+          clearTimeout(this.pending.timeout);
+          this.pending = undefined;
+          reject(
+            error instanceof Error
+              ? error
+              : new Error(String(error)),
           );
-        }
-        if (response.kind !== expected) {
-          throw new Error(
-            `Expected response ${expected}, received ${response.kind}.`,
-          );
-        }
-        return response;
-      }
-      throw new Error("Too many unrelated keyboard packets preceded the response.");
-    } finally {
-      this.busy = false;
-    }
+        });
+    });
   }
 
-  close(): Promise<void> {
-    return this.connection.close();
+  async close(): Promise<void> {
+    if (this.closed) return;
+    this.closed = true;
+    if (this.pending) {
+      clearTimeout(this.pending.timeout);
+      this.pending.reject(new Error("The HID link was closed."));
+      this.pending = undefined;
+    }
+    await this.connection.close();
+  }
+
+  private async readLoop(): Promise<void> {
+    while (!this.closed) {
+      try {
+        const report = await this.connection.read(250);
+        if (!report) {
+          await new Promise<void>((resolve) => setImmediate(resolve));
+          continue;
+        }
+        if (
+          report.length === GENERIC_HID_HOST_REPORT_BYTES &&
+          report[0] !== GENERIC_HID_INPUT_REPORT_ID
+        ) {
+          continue;
+        }
+        if (
+          report.length !== GENERIC_HID_HOST_REPORT_BYTES &&
+          report.length !== GENERIC_HID_HOST_REPORT_BYTES - 1
+        ) {
+          continue;
+        }
+        const [sequence, packet] = decodeGenericHidInput(report);
+        if (isDeviceEventPacket(packet)) {
+          this.onEvent(packet);
+          continue;
+        }
+        const pending = this.pending;
+        if (!pending || sequence !== pending.sequence) continue;
+        clearTimeout(pending.timeout);
+        this.pending = undefined;
+        if (
+          packetSessionId(packet) !==
+          packetSessionId(pending.request)
+        ) {
+          pending.reject(
+            new Error("Keyboard response belongs to another session."),
+          );
+          continue;
+        }
+        if (packet.kind === PacketKind.DeviceError) {
+          pending.reject(
+            packet.requestKind !== pending.request.kind
+              ? new Error(
+                  "Keyboard error response refers to another request.",
+                )
+              : new Error(
+                  `Keyboard reported ${packet.code} for packet ${packet.requestKind}.`,
+                ),
+          );
+          continue;
+        }
+        if (packet.kind !== pending.expected) {
+          pending.reject(
+            new Error(
+              `Expected response ${pending.expected}, received ${packet.kind}.`,
+            ),
+          );
+          continue;
+        }
+        pending.resolve(packet);
+      } catch (error) {
+        if (this.closed) return;
+        const pending = this.pending;
+        if (pending) {
+          clearTimeout(pending.timeout);
+          this.pending = undefined;
+          pending.reject(
+            error instanceof Error
+              ? error
+              : new Error(String(error)),
+          );
+        }
+        if (!pending) {
+          this.onFatal(
+            error instanceof Error
+              ? error
+              : new Error(String(error)),
+          );
+        }
+        return;
+      }
+    }
+  }
+}
+
+function isDeviceEventPacket(packet: Packet): boolean {
+  return (
+    packet.kind === PacketKind.CellEvent ||
+    packet.kind === PacketKind.InteractionModeEntered ||
+    packet.kind === PacketKind.InteractionModeExited ||
+    packet.kind === PacketKind.SceneExpired
+  );
+}
+
+function isNextEventSequence(
+  previous: number | undefined,
+  next: number,
+): boolean {
+  if (previous === undefined) return false;
+  return next === (previous === 0xffff_ffff ? 1 : previous + 1);
+}
+
+function packetToDeviceEvent(packet: Packet): DeviceEvent | undefined {
+  switch (packet.kind) {
+    case PacketKind.CellEvent:
+      return {
+        kind: "cell",
+        event: {
+          sessionId: packet.sessionId,
+          sequence: packet.eventSequence,
+          interactionEpoch: packet.interactionEpoch,
+          cellId: packet.cellId,
+          kind: packet.eventKind,
+        },
+      };
+    case PacketKind.InteractionModeEntered:
+      return {
+        kind: "interactionModeEntered",
+        sessionId: packet.sessionId,
+        sequence: packet.eventSequence,
+        interactionEpoch: packet.interactionEpoch,
+      };
+    case PacketKind.InteractionModeExited:
+      return {
+        kind: "interactionModeExited",
+        sessionId: packet.sessionId,
+        sequence: packet.eventSequence,
+        interactionEpoch: packet.interactionEpoch,
+      };
+    case PacketKind.SceneExpired:
+      return {
+        kind: "sceneExpired",
+        sessionId: packet.sessionId,
+        generation: packet.generation,
+      };
+    default:
+      return undefined;
   }
 }
 

@@ -10,8 +10,11 @@ The firmware should report:
 - maximum scene lease; and
 - current session/generation and last result.
 
-Human-readable geometry remains in a versioned desktop device catalog. The wire
-uses opaque numeric cell IDs and does not expose WS2812 indices.
+Human-readable geometry remains in a versioned desktop device catalog. Scene
+messages use stable raw LED channels and key events use stable ZMK positions.
+The desktop catalog maps both identities to physical keys. This keeps
+calibration and hardware-revision corrections on the host, where they do not
+require another firmware flash.
 
 ## Minimal protocol
 
@@ -144,11 +147,11 @@ combos, hold-taps, tap dance, and listener ordering.
 
 ## Electrical scope
 
-Six clamped cells do not prove that 40 or 80 cells are safe. Before each
-expansion, enforce and validate a frame-wide current budget per half based on
-cell count, all channels, animation duty cycle, transport power, and that
-half's battery. The protocol can address 80 cells before the validated
-brightness limit permits all 80 to be lit at maximum output.
+Addressability does not prove that 40 or 80 cells are safe at arbitrary output.
+Firmware clamps host brightness to 96/255 and the first hardware calibration
+uses one low-brightness channel at a time. Any later increase must be based on
+a frame-wide current budget per half, animation duty cycle, transport power,
+and that half's battery.
 
 ## Split synchronization
 
@@ -167,6 +170,11 @@ versioned, generation-tagged snapshot of the right subset to the peripheral.
   streaming over the split link. Any later blink capability follows the same
   rule.
 - Each half clamps brightness/current from its own power and battery state.
+- Leases are relative on each MCU; the right lease begins after its snapshot
+  arrives. The central subtracts a one-second transfer reserve, but this is
+  not clock synchronization. Under an unusually stalled-yet-connected split
+  link, right-side expiry may trail left-side expiry; it remains bounded by
+  the firmware's 60-second maximum and the same brightness/current clamps.
 
 Right-side input positions already travel to the central through the existing
 split keyboard path. The control layer reuses those logical positions and does
