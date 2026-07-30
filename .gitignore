@@ -2,8 +2,12 @@
 .idea/
 .vscode/
 node_modules/
+target/
 dist/
 build/
+.vite/
+*.tsbuildinfo
+apps/desktop/src-tauri/gen/
 .env
 .env.*
 !.env.example

@@ -1,0 +1,15 @@
+[package]
+name = "control-core"
+description = "Pure state transitions for the Glove80 desktop control surface"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+serde.workspace = true
+surface-protocol = { path = "../surface-protocol" }
+
+[dev-dependencies]
+serde_json.workspace = true

@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart LR
-    Integrations["Built-in integrations"] --> App["One macOS application"]
+    Integrations["Built-in integrations"] --> App["One Tauri desktop application"]
     Config["Local bindings + preferences"] <--> App
     App <-->|"Vendor HID over USB"| Central["Glove80 left / central"]
     Central <-->|"Versioned scene snapshot + input"| Peripheral["Glove80 right / peripheral"]
@@ -19,13 +19,14 @@ The firmware extension exposes a capability-described **control surface**:
 - a fixed capability/status feature report;
 - one leased, atomically committed scene over every available RGB cell;
 - key-down and key-up events while that mode is active;
-- solid, pulse, and blink;
+- solid and pulse; blink remains conditional on later accessibility and power
+  evidence;
 - bounded brightness and power behavior; and
 - a momentary control layer gated by a live host session.
 
-### macOS application
+### Desktop application
 
-One process initially owns all runtime responsibilities:
+One state-owning Rust core initially owns all runtime responsibilities:
 
 - opens the HID device;
 - runs built-in integrations;
@@ -41,10 +42,14 @@ adapter hides reports, sessions, fragmentation, and both-half acknowledgements
 behind complete desired scenes. Desired and device-applied state remain
 separate so the UI never claims a stale half is synchronized.
 
-These remain internal module boundaries, not separate processes or a public
-SDK. A daemon, authenticated local RPC, worker isolation, and a separate
-Electron renderer are added only if measured lifecycle or security needs
-justify them.
+React renders the editor and HUD through Tauri's platform webview. It receives
+revisioned view state and sends semantic user intentions; it never receives
+HID, arbitrary shell, credential, or unrestricted filesystem access.
+
+These remain internal module boundaries, not services or a public SDK. A
+daemon, authenticated local RPC, and worker isolation are added only if
+measured lifecycle or security needs justify them. “One application” does not
+claim one OS process: Tauri uses a Rust process plus platform webview processes.
 
 The internal ports, visual keyboard editor, state flows, implementation
 recommendation, and delivery phases are specified in
@@ -91,7 +96,7 @@ or the left side. Each half independently enforces its electrical budget.
 | --- | --- |
 | Normal typing layout and ZMK behaviors | User keymap / firmware build |
 | Device cell topology and safety limits | Firmware |
-| Ordered-cell bindings, allocation, and preferences | macOS application |
+| Ordered-cell bindings, allocation, and preferences | Desktop application |
 | Integration state | Built-in integration |
 | Resolved active scene | Application and firmware lease |
 

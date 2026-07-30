@@ -62,7 +62,7 @@ never rewrites or flashes that imported configuration.
 - Global brightness and battery-aware limits.
 - Pattern or motion differences so color is never the only attention signal.
 - Text labels in the runtime HUD.
-- Critical needs-input and error states also use the HUD or a macOS
+- Critical needs-input and error states also use the HUD or a platform
   notification; stationary RGB alone cannot be fully color-independent.
 - A keyboard- and screen-reader-accessible editor when an editor is built.
 

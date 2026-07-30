@@ -28,17 +28,17 @@ implementation commitments.
 3. Is the generated highest-priority layer sufficient for all 80 positions,
    and what documented fallback exists for a user's already-occupied trigger?
 
-## Before choosing the desktop stack
+## Before shipping the desktop stack
 
-1. Can one ordinary macOS application reliably own HID, run while its window is
-   closed, and present the HUD, or is a helper process actually required?
+1. Can one Tauri application reliably own HID, run while its window is closed,
+   and present a no-focus HUD on each target platform without a helper service?
 2. What local configuration format supports resolved collections, sticky
    allocation, and accessible presentation overrides without pretending to be
    a public integration API?
 3. Does a labeled runtime HUD actually make 80 physical bindings discoverable,
    or is another view needed?
-4. Can a standalone app-server client observe live turns owned by the Codex
-   desktop app, or only threads run through its own server session?
+4. Can a one-time official lifecycle-hook bridge safely supplement app-server
+   discovery for Desktop-owned turns without delaying or perturbing Codex?
 5. Which EventKit fields and Calendar automation mappings survive for each
    configured provider, and which support Join, Show event, or only Open
    Calendar?

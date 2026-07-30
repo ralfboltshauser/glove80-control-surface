@@ -23,22 +23,23 @@ The first application talks to three kinds of dependency:
 
 ```mermaid
 flowchart LR
-    User["User"] <--> UI["Native macOS UI"]
+    User["User"] <--> UI["React editor + HUD"]
     UI <--> Core["Application core"]
     Core <-->|"SurfaceDevice"| Keyboard["Glove80"]
     Core <-->|"IntegrationAdapter"| Integrations["Built-in integrations"]
     Core <-->|"PersistencePort"| Files["Atomic local configuration"]
-    Integrations --> Services["Codex app-server + macOS Calendar"]
+    Integrations --> Services["Codex app-server + optional platform Calendar"]
 ```
 
 Firmware building and flashing are an explicit separate workflow. The running
 application does not talk to bootloaders, Bluetooth pairing settings, or the
 right half directly.
 
-## One-process architecture
+## One-application architecture
 
-The initial product is one native macOS application. Logical boundaries are
-plain protocols and folders, not services:
+The initial product is one Tauri application with a state-owning Rust core and
+a React renderer. Logical boundaries are plain Rust modules/crates and React
+components, not services:
 
 ```text
 App
@@ -79,8 +80,9 @@ through it. The UI observes derived immutable view state. It coordinates
 rather than containing domain logic: binding resolution and scene composition
 remain pure.
 
-One process does not mean one executor. The device adapter owns an independent
-actor/task for lease renewal and HID I/O; each integration owns cancellable,
+One application does not mean one OS process or one executor. Tauri uses a Rust
+process and platform webview processes. The device adapter owns an independent
+task/thread for lease renewal and HID I/O; each integration owns cancellable,
 timeout-bounded observation work. Slow UI or network work must never block a
 keyboard lease. Event streams are bounded and report overflow explicitly.
 
@@ -115,7 +117,7 @@ Runtime state is separate and never written on every poll:
 
 ```text
 ResolvedCollection
-ResolvedTile
+AllocationCandidate
 SlotAllocation
 DeviceSnapshot
 ResolvedCellPresentation
@@ -187,7 +189,7 @@ The contract uses:
 SourceConfiguration
 ResolvedResource
 ResolvedCollection
-ResolvedTile
+AllocationCandidate
 Retention
 ActionDescriptor
 ActionRequest
@@ -304,35 +306,37 @@ Lasso, drag-to-copy, pages, and arbitrary key rearrangement are deferred.
 Ordered multi-selection is required for the Codex task board; a one-cell
 selection remains the Calendar flow.
 
-### Left integration rail
+### Left assignment rail
 
-The left rail shows only the two v0 integrations, Codex and Calendar, plus
-their health. Selecting one filters the canvas. Enabling an integration opens
-a focused setup flow. It does not resemble a plugin marketplace.
+The left rail shows durable physical meanings: **Codex task board** and, if its
+evidence gate passes, **Next meeting**. Selecting an assignment highlights its
+physical region and runtime allocation. Connections and adapter health live in
+setup/settings rather than becoming the user's daily navigation. `+ Add`
+offers only the built-in assignment types; it does not resemble a plugin
+marketplace.
 
 ### Right binding inspector
 
 The inspector follows a short top-to-bottom decision sequence:
 
 ```text
-Integration
+Assignment
 Represents
 When pressed
 Visibility
 Appearance
 ```
 
-`Represents` embeds a small integration-specific editor:
+The assignment embeds a small integration-specific editor:
 
-- Codex selects a Priority, Recent, or Pinned task board and an ordered region
-  of any size; fixed task is advanced.
+- Codex selects an ordered region of any size. The board fills automatically;
+  workspace restriction is optional and runtime task identity is read-only.
 - Calendar selects `next meeting`, one or more calendars, and eligibility
   options.
 
 The default presentation is shown before overrides. Advanced palette/effect
 controls remain collapsed. Saving is immediate and local, with Undo for
-binding edits. A deleted advanced fixed task remains visibly stale until the
-user chooses a replacement.
+binding edits.
 
 Configuration has three visible scopes:
 
@@ -416,28 +420,22 @@ complete scene.
 
 ## Recommended implementation stack
 
-For the macOS-first product, start with:
+Use:
 
-- Swift and SwiftUI for the application and menu-bar/HUD surfaces;
-- a small `IOHIDManager` surface-device adapter;
-- Swift structured concurrency with one coordinator actor;
+- Tauri 2 for the cross-platform application shell, windows, tray, packaging,
+  and signed updater;
+- Rust for coordination, `hidapi`, leases, persistence, platform seams, and
+  supervised Codex app-server stdio;
+- React, TypeScript, and Vite for the keyboard editor and HUD;
 - a versioned JSON configuration document;
-- XCTest plus deterministic fake adapters.
+- pure Rust tests, Vitest/Testing Library, deterministic fake adapters, and
+  WebDriver screenshot flows.
 
-This is a working recommendation, not a cross-platform commitment. Before
-building the full shell, one bounded spike must prove:
-
-1. an accessible, zoomable 80-key SwiftUI canvas at acceptable performance;
-2. opening and exchanging vendor reports with the current Glove80;
-3. a non-focus-stealing interaction HUD; and
-4. background/menu-bar lifecycle and lease renewal during sleep/wake.
-
-If the canvas alone requires AppKit, wrap one focused `NSView`; do not replace
-the architecture or introduce a web renderer solely for that reason.
-
-Also prove a normally code-signed, non-sandboxed build can access the vendor
-HID collection before choosing distribution. Mac App Store sandbox
-compatibility is not assumed.
+The renderer cannot spawn processes or open HID. GUI applications do not
+reliably inherit an interactive shell `PATH`, so Codex executable discovery is
+explicit. macOS distribution is non-App-Store and code-signed/notarized.
+Windows uses WebView2; Linux documents a narrowly scoped udev rule and degrades
+the no-focus HUD honestly where Wayland prevents exact placement.
 
 ## Testing strategy
 
@@ -476,91 +474,20 @@ compatibility is not assumed.
 
 ## Delivery plan
 
-### A0 — contracts and feasibility
-
-- Specify core domain types and desired-versus-applied ownership.
-- Prove vendor HID access, background renewal, and the keyboard canvas in
-  bounded spikes.
-- Prove the scope of live Codex observation across app-server and the desktop
-  app; do not build the task-state picker around unobservable threads.
-- Create the coordinator, surface-device/integration ports, and fakes.
-
-Exit: a signed development build opens the current vendor collection, and the
-fakes exercise session expiry and stale integration state.
-
-### A1 — visual editor with fakes
-
-- Render the complete keyboard using the device catalog.
-- Implement single and ordered multi-selection, inspector shell, zoom/fit,
-  status bars, and accessibility list.
-- Add optional read-only MoErgo JSON legend import.
-- Run entirely against a simulated keyboard and simulated Codex adapter.
-
-Exit: select a six-cell cross-half region, bind a fake Priority task board,
-watch sticky tasks move through working and completed states without
-reshuffling, pause/resume, and see both simulated halves acknowledge a scene.
-
-### A2 — first real vertical slice
-
-- Implement `Glove80SurfaceDevice` for current capabilities/status and six-cell
-  output reports.
-- Show exact compatibility and session status.
-- Preserve the existing timeout and clear behavior.
-- Implement the real Codex adapter only for task sources whose live state was
-  proven; keep physical action dispatch disabled.
-
-Exit: bind the proven cells to a real Priority task board and observe tasks
-enter, remain sticky, complete, and age into overflow or eviction without
-firmware or keymap mutation.
-
-### A3 — physical interaction vertical slice
-
-- Consume mode/key events with sequence and epoch validation.
-- Freeze the resolved resource identity and observed revision during
-  interaction.
-- Prototype the HUD and one safe action without stealing focus.
-- Test crash, expiry, held keys, duplicate events, sleep/wake, and unplug.
-
-Exit: holding the physical trigger and pressing left `1` opens the bound task;
-release immediately restores ordinary typing.
-
-### A4 — expand hardware breadth
-
-- Implement sessions, renewal, fragmented scenes, atomic commit, and events.
-- Expand the same surface-device adapter to 40 then 80 capability-described
-  cells.
-- Add both-half acknowledgement, reconnect, and error UI.
-
-Exit: the existing editor and adapter interfaces render and verify complete
-scenes on both halves without redesign.
-
-### A5 — product hardening
-
-- Harden menu-bar lifecycle, pause/clear, notifications,
-  configuration migration, and secret-free import/export.
-- Implement Calendar `nextMeeting` using the Mac's configured calendars and
-  read-only product behavior.
-- Inspect actual EventKit records and Calendar automation for configured
-  providers; capability-gate Join and exact-event navigation.
-- Revalidate frozen Calendar actions and exercise expiry, redaction, conflicts,
-  visible cancellation, timezone changes, and meeting-link capabilities.
-- Review the common adapter contract against Codex's dynamic task collection
-  and Calendar's time-driven singleton.
-
-Exit: Codex and Calendar fit the same device and inspector shell without a
-generic UI schema or integration-specific firmware. Only then revisit dynamic
-regions or a public out-of-process plugin SDK.
+The canonical implementation order, status, evidence gates, and acceptance
+commands live in [Delivery milestones](../MILESTONES.md). This document defines
+component responsibilities and does not maintain a second checklist.
 
 ## Explicitly deferred
 
 - Downloadable third-party plugins and a marketplace.
 - Plugin subprocesses, sandbox protocol, permissions UI, and signing.
 - A daemon, local RPC server, or multiple UI clients.
-- Electron or another separate renderer process.
+- A separately installed renderer or helper service.
 - Automatic firmware building or flashing.
 - Bluetooth pairing management.
 - Multiple pages and profiles.
-- Cross-platform UI.
+- Provider abstractions invented solely to make Calendar appear cross-platform.
 - Cloud synchronization and accounts.
 - Telemetry.
 

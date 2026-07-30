@@ -1,6 +1,6 @@
 # ADR 0005: One process and built-in integrations first
 
-- Status: Accepted for the initial product
+- Status: Superseded in part by ADR 0006
 - Date: 2026-07-29
 
 ## Context
@@ -11,9 +11,14 @@ and versioning work before the central interaction is proven.
 
 ## Decision
 
-The initial macOS product is one process owning HID, local configuration,
+The initial product is one desktop application with one logical state owner,
 built-in integrations, a minimal editor, and the interaction HUD. Firmware
 build/install remains an explicit external workflow.
+
+ADR 0006 replaces the literal process and macOS assumptions: a Tauri
+application uses a Rust core plus platform webview processes and targets
+macOS, Windows, and Linux. The decisions to avoid a daemon, public plugin SDK,
+and arbitrary third-party code remain accepted.
 
 ## Consequences
 

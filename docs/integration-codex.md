@@ -17,11 +17,11 @@ A key keeps its ordinary typing behavior outside the firmware-installed surface
 layer. While the trigger is held, pressing a populated key opens the task it
 currently represents.
 
-The user does not bind every short-lived chat manually. A fixed task binding is
-an advanced exception for a genuinely long-lived task, not the v0 default.
+The user does not bind every short-lived chat manually. Fixed-task binding is
+excluded from v0; it may return only if real long-lived-task use justifies it.
 
-This is a standalone macOS application and menu-bar surface. It uses documented
-deep links and app-server events only where this client is proven to observe
+This is a standalone cross-platform desktop application. It uses documented
+deep links and app-server data only where this client is proven to observe
 them; it is not layered on the Codex UI, Codex Micro settings, or another
 overlay product.
 
@@ -80,17 +80,18 @@ Sources:
 
 The first-run flow is:
 
-1. The user enables **Codex** in the integration rail.
-2. The app connects to a Codex source whose live observation capability has
-   been proven and states its exact scope.
+1. The app connects to an installed Codex app-server and states its exact
+   observation scope.
+2. The user creates one **Codex task board** assignment.
 3. The user selects any ordered group of Glove80 keys on either or both halves.
-4. The inspector shows:
+4. The app previews task churn and explains that no chat selection is saved.
+5. The inspector shows:
 
 ```text
 Integration     Codex
 Represents      Task board
 Keys            LH 1, LH 2, LH 3, LH 4, RH 7, RH 8
-Tasks           Priority
+Tasks           Fills automatically
 When pressed    Open task
 Visibility      Always
 Appearance      Glove80 status default
@@ -100,20 +101,18 @@ The app may suggest six convenient cells during onboarding, but six is never a
 product limit. The user may choose one key, all 80 available RGB cells, or any
 ordered subset across both halves.
 
-Only **Keys** is required. The default source is **Priority**, because it keeps
-attention-needed work on the surface without manual maintenance.
+Only **Keys** is required. Priority and retention are product behavior, not an
+onboarding questionnaire.
 
-Available source strategies:
+The v0 source is:
 
-| Strategy | Meaning |
+| Source | Meaning |
 | --- | --- |
 | Priority | error, needs-input, active, and completed/unread tasks, then recent idle tasks |
-| Recent | most recently updated eligible tasks |
-| Pinned | pinned tasks only |
-| Fixed task | one manually selected task; advanced |
 
-`Custom assignments` from Codex Micro are represented by one or more advanced
-fixed-task bindings. They do not dominate the default flow.
+An optional workspace restriction may narrow the collection. There is no task
+picker, fixed-task binding, Pinned strategy, or saved thread identifier in v0.
+The installed Codex schemas do not expose pins.
 
 ## Stable automatic allocation
 
@@ -162,11 +161,23 @@ random.
 No default blinks. Reduced-motion replaces pulse with luminance. Color-blind
 palettes may change hues while preserving semantic names.
 
-For threads owned by an app-server session, the protocol can provide thread
-runtime status, turn lifecycle events, approval requests, user-input requests,
-and failures. A separate app-server is **not** documented to observe live turns
-running inside the ChatGPT desktop app's private process. Approval and input
-state are known only for requests observed by this client.
+The integration has two explicitly different observation scopes:
+
+| Scope | Proven capability |
+| --- | --- |
+| External discovery | Discover, order, label, and open changing Desktop/CLI tasks from persisted app-server data; live status is unknown |
+| Owned live | Exact runtime status and lifecycle events for tasks started through this application's own app-server connection |
+
+Direct probes against the installed `0.144.6` CLI and ChatGPT-bundled
+`0.146.0-alpha.3.1` binary found active Desktop tasks but reported every one as
+`notLoaded` from a separate server. The owning process's approval and
+user-input requests are not observable by the watcher.
+
+Therefore an externally discovered task is never shown as idle merely because
+its status is `notLoaded`. Working, needs-input, and exact failure colors are
+used only when an authoritative live source exists. A bounded official
+lifecycle-hook bridge is being evaluated as a one-time enhanced-status option;
+it is not silently assumed.
 
 Codex Micro uses pulse for the selected chat, not as its documented working or
 needs-input effect. The Glove80 default deliberately adds pulse to working and
@@ -223,7 +234,7 @@ Selecting the board shows:
 - source strategy and ordered cells;
 - current task-to-cell allocation;
 - each task's title, workspace, state, and last update;
-- protected versus evictable allocation status;
+- protected versus normal allocation status;
 - overflow count;
 - stale or unsupported reasons; and
 - a complete state preview strip.
@@ -256,25 +267,16 @@ RGB communicates attention; the HUD communicates identity and action.
 ### Task board
 
 - ordered physical cells;
-- Priority, Recent, or Pinned source strategy;
+- optional workspace scope;
 - Open task action;
 - always or attention-only visibility;
 - optional presentation override.
 
-### Advanced fixed task
-
-- one physical cell;
-- one deep-link-compatible local task;
-- Open task action.
-
 ## Remaining uncertainties
 
-- **Primary feasibility gate:** whether a standalone process can observe live
-  state for tasks currently running in the Codex desktop app. Official
-  app-server documentation proves events within that server's client session,
-  not attachment to the desktop app's private runtime.
-- The exact candidate list available through the proven source determines
-  whether Priority, Recent, and Pinned can all ship.
+- Whether a trusted, fail-open official lifecycle-hook bridge can add
+  cross-process live events without delaying Codex or requiring brittle
+  transcript parsing.
 - The official deep link opens a local thread. Other task sources are excluded
   until their navigation and live-state behavior are proven.
 - Cross-client read acknowledgement may not exist. The v0 fallback is

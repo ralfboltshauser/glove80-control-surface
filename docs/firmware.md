@@ -99,7 +99,8 @@ Unassigned surface cells are transparent by default; they do not erase ordinary
 underglow. The exact priority and restoration behavior require compositor
 tests.
 
-The initial effect vocabulary is solid, pulse, and blink.
+The required effect vocabulary is solid and pulse. Blink remains optional and
+is added only if later accessibility and power testing justify it.
 
 LED power is never restored from a historical snapshot. It is continuously
 derived from current state:
@@ -162,8 +163,9 @@ versioned, generation-tagged snapshot of the right subset to the peripheral.
 - Reconnect triggers a full snapshot, not a replay of deltas.
 - Mixed protocol versions or a missing peripheral fail closed for right-side
   lighting while leaving typing and left-side rendering intact.
-- Pulse and blink run locally from shared effect parameters, avoiding continuous
-  frame streaming over the split link.
+- Pulse runs locally from shared effect parameters, avoiding continuous frame
+  streaming over the split link. Any later blink capability follows the same
+  rule.
 - Each half clamps brightness/current from its own power and battery state.
 
 Right-side input positions already travel to the central through the existing

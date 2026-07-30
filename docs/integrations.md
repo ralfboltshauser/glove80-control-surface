@@ -5,7 +5,7 @@
 Integrations translate external application state into semantic snapshots and
 safe actions. The firmware remains application-agnostic.
 
-The first integrations are built into the macOS application. This document is
+The first integrations are built into the desktop application. This document is
 an internal boundary, not a public plugin SDK commitment.
 
 ## Conceptual data
@@ -42,15 +42,16 @@ user preferences resolve it into a presentation supported by the device.
 
 ## Initial limits
 
-- Two built-in integrations with three source kinds:
+- One shipping integration and one evidence-gated integration:
   - Codex `taskBoard`;
-  - Codex advanced `fixedTask`;
-  - Calendar `nextMeeting`.
+  - Calendar `nextMeeting`, only if its bounded platform spike passes.
 - At most one safe tap action per resolved tile.
 - Status-only and action-only bindings are allowed.
 - No arbitrary third-party code loading.
 - Neither v0 integration stores a service credential.
 - Diagnostics redact resource labels and event/task content.
+- A normal Codex binding contains no fixed thread ID. Fixed-task assignment is
+  not exposed in v0.
 
 The application, not an integration, owns HID, firmware, visual priority,
 brightness, accessibility, acknowledgement, and stale-state policy.

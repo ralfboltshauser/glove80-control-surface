@@ -36,16 +36,21 @@ The first product has two integrations:
 None of those concepts belong in the firmware. They are host-side integrations
 using a generic control-surface protocol.
 
+![Static task-board editor preview in dark mode](docs/screenshots/milestone-0-preview-dark.png)
+
+The screenshot is a static design preview, not a live simulator and not a claim
+that 80-cell firmware is already installed.
+
 ## Product model
 
 ```text
 Glove80 firmware
   ├── renders a leased scene across both 40-key halves
-  ├── runs solid, pulse, and blink locally
+  ├── runs solid and pulse locally
   └── emits key down/up events in a momentary interaction layer
 
-One macOS application
-  ├── owns the USB HID session
+One cross-platform desktop application
+  ├── owns the USB HID session in its Rust core
   ├── stores bindings for every available RGB cell
   ├── runs built-in integrations
   ├── resolves semantic state into accessible visuals
@@ -81,27 +86,31 @@ and [Calendar integration UX](docs/integration-calendar.md).
 ## Initial target
 
 - MoErgo Glove80 with RGB
-- macOS
+- macOS, Windows, and Linux, with macOS receiving the most platform polish
 - USB transport first
 - all 80 RGB cells across both halves as the product target
-- one macOS process with local configuration
-- two built-in integrations: Codex and Calendar
-- solid, pulse, and blink
+- one Tauri desktop application with a state-owning Rust core
+- Codex first; Calendar ships only if its small evidence gate passes
+- solid and pulse; blink is accepted only if later accessibility and power
+  evidence justify it
 - a labeled on-screen HUD during momentary interaction
 
 Implementation expands in measured steps: preserve the existing six-cell
 experiment as a regression fixture, validate the complete 40-cell left frame,
 then synchronize and validate the 40-cell right frame. A release for the
 both-RGB Glove80 is not complete until all 80 cells are addressable. Bluetooth,
-a public plugin SDK, and cross-platform support remain separate evidence-gated
-expansions.
+a public plugin SDK, and a generic Calendar-provider layer remain separate
+evidence-gated expansions.
 
 ## Repository status
 
-This initial repository intentionally contains specifications and decisions,
-not an application skeleton. Technology choices should follow validated
-requirements rather than quietly becoming requirements themselves.
+The repository now contains the Tauri/React shell, pure Rust protocol and
+allocation crates, a static 80-cell design preview, tests, and the
+specifications that govern each implementation milestone. The stateful
+simulator is Milestone 1 work. No firmware in this repository should be flashed
+yet.
 
+- [Executable milestones](MILESTONES.md)
 - [Roadmap](docs/roadmap.md)
 - [End-to-end user experience](docs/user-experience.md)
 - [Desktop application and visual editor](docs/application.md)

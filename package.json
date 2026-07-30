@@ -1,0 +1,16 @@
+{
+  "name": "glove80-control-surface",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@11.1.2",
+  "engines": {
+    "node": ">=24 <26"
+  },
+  "scripts": {
+    "build": "pnpm --filter @glove80-control-surface/desktop build",
+    "check": "pnpm --filter @glove80-control-surface/desktop check",
+    "dev": "pnpm --filter @glove80-control-surface/desktop tauri dev",
+    "format:check": "cargo fmt --check",
+    "test": "pnpm --filter @glove80-control-surface/desktop test && cargo test --workspace"
+  }
+}

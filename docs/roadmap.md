@@ -1,130 +1,35 @@
 # Roadmap
 
-This roadmap orders vertical risk reduction, not feature desirability. The
-application starts against fakes immediately; it does not wait for 80-cell
-firmware before testing the product UX.
+The canonical, checkable delivery plan is
+[MILESTONES.md](../MILESTONES.md). It replaces the earlier macOS-native roadmap
+so implementation status and acceptance evidence have one source of truth.
 
-## Phase 0 — contracts and feasibility
+The order is:
 
-- Specify the firmware display/interaction state machine and byte-level
-  session, scene, feature, and input reports.
-- Specify the app domain types, `SurfaceDevice`, and `IntegrationAdapter`.
-- Separate desired scene from device-applied scene.
-- Add shared golden protocol vectors and malformed-message tests.
-- Record the exact tested MoErgo commit, descriptor, board, and current
-  six-cell protocol.
-- Prove a normally code-signed, non-sandboxed Swift process can open the vendor HID
-  collection and maintain background renewal through sleep/wake.
-- Build deterministic fake surface-device, Codex, and Calendar adapters.
-- Prove whether a standalone Codex client can observe live turns owned by the
-  desktop app; otherwise scope Codex to app-server-owned threads before UI
-  implementation.
+1. evidence, cross-platform architecture, and bootable monorepo;
+2. complete simulated product vertical slice;
+3. dynamic Codex discovery and capability-honest live status;
+4. the existing six-cell HID path;
+5. generic 80-cell, both-half firmware and momentary interaction;
+6. platform/accessibility hardening and a strict Calendar ship/defer gate; and
+7. signed, clean-machine release validation.
 
-Exit criterion: the protocol decoder passes reviewed vectors, every
-expiry/press transition has an expected outcome, and the application can run
-its lifecycle entirely against fakes.
+Every milestone follows the same loop:
 
-## Phase 1 — visual editor with fakes
+```text
+re-check evidence and assumptions
+→ update docs and acceptance criteria
+→ implement a vertical slice
+→ run automated and end-to-end checks
+→ run adversarial and visual reviews
+→ close blocking findings
+→ mark complete
+```
 
-- Build the one-process native app and single logical state owner.
-- Render both physical halves from the versioned device catalog.
-- Add single and ordered multi-select, inspect, bind, preview, Undo, zoom/fit,
-  status, and accessible non-spatial navigation.
-- Add optional read-only MoErgo JSON import for accurate base-layer legends.
-- Simulate desired/applied divergence, right-half lag, stale resources, pause,
-  reconnect, and action results.
+The sequence deliberately exercises the same ports against deterministic fakes
+before touching firmware. Expanding from the proven six-cell fixture to 40 and
+then 80 cells must not require redesigning the application.
 
-Exit criterion: bind a six-cell region to a fake Priority task board, verify
-sticky allocation, protection, eviction, and overflow, and see both simulated
-halves acknowledge the generation.
-
-## Phase 2 — six-cell ambient vertical slice
-
-- Connect `Glove80SurfaceDevice` to the existing six-cell USB reports.
-- Fix compositor priority and current-state power computation.
-- Validate exact cells, expiry, ordinary RGB coexistence, Magic diagnostics,
-  battery behavior, and malformed reports.
-- Implement the real built-in Codex adapter only for task sources whose live
-  observation was proven; leave physical action dispatch disabled.
-- Show desired, applied, stale, incompatible, and paused states honestly.
-
-Exit criterion: bind the six proven cells to a real Codex task board and
-observe tasks enter, remain sticky, complete, and age into overflow or eviction
-without changing typing behavior or reflashing.
-
-## Phase 3 — momentary interaction vertical slice
-
-- Resolve and document one exact physical trigger and keymap integration seam.
-- Add the vendor input report and host deduplication.
-- Add the reserved surface layer and generic surface-key behaviors.
-- Freeze binding allocation by interaction epoch.
-- Prototype the non-focus-stealing HUD and one safe Codex action.
-- Test trigger release, crash, lease expiry, sleep/wake, USB unplug, reboot,
-  duplicate/gapped events, and keys held across every transition.
-
-Exit criterion: holding the trigger and pressing left `1` invokes the bound
-action; release immediately restores ordinary typing, and no new normal press
-is lost after failure.
-
-## Phase 4 — complete left half
-
-- Add fragmented, atomic complete-scene commits.
-- Enforce and measure a complete-frame current budget.
-- Map and validate every available left-half RGB cell.
-- Implement solid, pulse, and blink locally.
-- Reuse the existing app/editor interfaces without a cell-count special case.
-
-Exit criterion: all 40 left cells render independently and safely under
-worst-case static and animated scenes.
-
-## Phase 5 — complete right half
-
-- Add the versioned scene snapshot protocol over the split link.
-- Coalesce updates and acknowledge applied generations.
-- Test disconnect/reconnect, reboot, mixed versions, packet loss, and stale
-  peripheral state.
-- Enforce the right half's independent power and battery budget.
-- Display central/right applied generations and failure independently.
-
-Exit criterion: all 80 cells are addressable, reconnect to the latest scene,
-and fail without affecting typing or the other half.
-
-## Phase 6 — Calendar and product hardening
-
-- Harden menu-bar lifecycle, pause/clear, notifications,
-  configuration migration, and secret-free import/export.
-- Implement Calendar `nextMeeting` with selected macOS calendars, temporal
-  state, expiry, redaction, and one capability-gated Open meeting action.
-- Inspect actual EventKit records and Calendar automation on configured
-  providers; capability-gate Join and exact-event navigation.
-- Freeze and revalidate the resolved event identity during interaction.
-- Complete keyboard-only, VoiceOver, reduced-motion, no-flash, high-contrast,
-  and increased-text testing.
-- Review the common integration contract against Codex's dynamic task
-  collection and Calendar's time-driven singleton.
-
-Exit criterion: both integrations fit without device special cases or a generic
-UI schema. Only then decide which abstraction, if any, is justified next.
-
-## Phase 7 — safe install and compatibility
-
-- Define the narrow keymap integration seam.
-- Build a compatibility matrix against exact MoErgo revisions and hardware
-  variants.
-- Produce canonical side-specific manifests, hashes, and known-good recovery
-  artifacts. Add signatures only after defining a trust root and threat model.
-- Guide bootloader detection, artifact-side validation, flash, verification,
-  and recovery as an explicit workflow separate from the runtime app.
-
-Exit criterion: a new supported user can reach the 80-cell product without
-manual source editing and can return to a known-good build.
-
-## Evidence-gated expansions
-
-- Bluetooth after live bidirectional HID, caching, lease, and power validation.
-- Public out-of-process plugin SDK after Codex and Calendar ship, a concrete
-  third-party need exposes a missing contract, and a threat model exists.
-- Separate daemon/UI processes only if lifecycle or isolation demands them.
-- Multiple keyboards and active-host takeover policy.
-- Pages only if one 80-cell surface cannot remain discoverable.
-- Cross-platform UI after the native Glove80 product is useful.
+No milestone permits automatic flashing, Bluetooth pairing changes, or false
+claims about unobserved Codex states. The user must explicitly approve any
+firmware flash after reproducible artifacts and recovery instructions exist.

@@ -57,8 +57,9 @@ normal mode:
 
 The application continuously observes the collection, preserves sticky slot
 allocation, and sends a new complete scene when state or allocation changes.
-The keyboard renders solid, pulse, or blink locally. It does not receive
-continuous animation frames.
+The keyboard renders solid or pulse locally. It does not receive continuous
+animation frames. Blink is not a baseline promise and remains conditional on
+later accessibility and power evidence.
 
 If the application disappears or its session expires, the temporary scene
 clears and normal typing remains available.

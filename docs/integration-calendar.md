@@ -25,7 +25,7 @@ does not document Google-style conference entry points.
 
 ## v0 setup
 
-1. The user enables **Calendar** in the integration rail.
+1. The user chooses **Next meeting** from `+ Add assignment`.
 2. The app explains why event access is needed, then asks macOS for permission.
 3. The user clicks a physical Glove80 key.
 4. The inspector shows:
