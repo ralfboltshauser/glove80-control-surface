@@ -75,6 +75,7 @@
     },
     "linux": {
       "category": "Utility",
+      "executableName": "glove80-control-surface",
       "target": [
         "AppImage",
         "deb"
