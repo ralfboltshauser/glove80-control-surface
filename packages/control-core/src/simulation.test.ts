@@ -8,6 +8,7 @@ import {
 import type {
   AppViewState,
   ConfigurationDocument,
+  ResolvedTile,
   RuntimeCommand,
 } from "./types";
 
@@ -100,7 +101,53 @@ describe("authoritative simulation runtime", () => {
     expect(restarted.sourceTaskCount).toBe(6);
     expect(restarted.board?.collectionAvailability).toBe("online");
   });
+
+  it("accepts a live task source without changing durable bindings", async () => {
+    const store = new MemoryStore();
+    const opened: string[] = [];
+    const runtime = new SimulationRuntime(store, {
+      initialTasks: [],
+      sourceAvailability: "unavailable",
+      invokeTask: async (task) => {
+        opened.push(task.resourceId);
+      },
+    });
+    await runtime.dispatch({ kind: "assignTaskBoard", cells: [0] });
+    await runtime.replaceTaskSource({
+      tasks: [liveTask("019fae8a-5cb4-7e70-88d8-d0af1e99032c")],
+      availability: "online",
+      source: {
+        kind: "codex",
+        connection: "online",
+        observation: "externalDiscovery",
+        label: "Codex app-server",
+        detail: "Persisted task discovery is online.",
+      },
+    });
+    await runtime.dispatch({ kind: "beginInteraction", epoch: 4 });
+    const result = await runtime.dispatch({
+      kind: "invokeCell",
+      epoch: 4,
+      cellId: 0,
+    });
+
+    expect(opened).toEqual(["019fae8a-5cb4-7e70-88d8-d0af1e99032c"]);
+    expect(result.taskSource.kind).toBe("codex");
+    expect(JSON.stringify(store.value)).not.toContain("019fae8a");
+  });
 });
+
+function liveTask(resourceId: string): ResolvedTile {
+  return {
+    resourceId,
+    label: "Live Codex task",
+    context: "project",
+    state: "stale",
+    action: { enabled: true },
+    retention: "normal",
+    revision: 1,
+  };
+}
 
 function assertExpectation(
   view: AppViewState,

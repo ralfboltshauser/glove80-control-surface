@@ -7,6 +7,7 @@ import type {
   ResolvedTile,
   RuntimeCommand,
   SemanticState,
+  TaskSourceView,
 } from "./types";
 
 const demoCells = [0, 1, 2, 40, 41, 42, 3, 4, 5, 43, 44, 45];
@@ -19,6 +20,16 @@ export interface ConfigurationStore {
 
 export interface SimulationRuntimeOptions {
   demo?: boolean;
+  initialTasks?: ResolvedTile[];
+  sourceAvailability?: CollectionAvailability;
+  taskSource?: TaskSourceView;
+  invokeTask?: (task: ResolvedTile) => Promise<void>;
+}
+
+export interface TaskSourceSnapshot {
+  tasks: ResolvedTile[];
+  availability: CollectionAvailability;
+  source: TaskSourceView;
 }
 
 interface FrozenAction {
@@ -86,15 +97,17 @@ function statePriority(state: SemanticState): number {
 
 export class SimulationRuntime implements AppBackend {
   private configuration: ConfigurationDocument;
-  private tasks = initialTasks();
-  private displayTasks = initialTasks();
+  private tasks: ResolvedTile[];
+  private displayTasks: ResolvedTile[];
+  private readonly resetTasks: ResolvedTile[];
   private allocation = new Map<number, string>();
   private frozenActions?: Map<number, FrozenAction>;
   private interactionEpoch?: number;
   private deferred = false;
   private acknowledged = new Map<string, number>();
-  private sourceAvailability: CollectionAvailability = "online";
-  private sourceTaskCount = this.tasks.length;
+  private sourceAvailability: CollectionAvailability;
+  private sourceTaskCount: number;
+  private taskSource: TaskSourceView;
   private revision = 1;
   private generation = 1;
   private activeGeneration?: number;
@@ -108,8 +121,21 @@ export class SimulationRuntime implements AppBackend {
 
   constructor(
     private readonly store: ConfigurationStore,
-    options: SimulationRuntimeOptions = {},
+    private readonly options: SimulationRuntimeOptions = {},
   ) {
+    this.resetTasks = cloneTasks(options.initialTasks ?? initialTasks());
+    this.tasks = cloneTasks(this.resetTasks);
+    this.displayTasks = cloneTasks(this.resetTasks);
+    this.sourceAvailability = options.sourceAvailability ?? "online";
+    this.sourceTaskCount = this.tasks.length;
+    this.taskSource =
+      options.taskSource ?? {
+        kind: "simulated",
+        connection: "online",
+        observation: "simulated",
+        label: "Deterministic task source",
+        detail: "Generated locally for safe interaction testing.",
+      };
     this.configuration = this.loadConfiguration();
     const recoveryMessage = this.store.recoveryMessage?.();
     if (recoveryMessage) {
@@ -130,6 +156,17 @@ export class SimulationRuntime implements AppBackend {
   }
 
   async bootstrap(): Promise<AppViewState> {
+    return this.view();
+  }
+
+  async replaceTaskSource(
+    snapshot: TaskSourceSnapshot,
+  ): Promise<AppViewState> {
+    this.tasks = cloneTasks(snapshot.tasks);
+    this.sourceAvailability = snapshot.availability;
+    this.taskSource = { ...snapshot.source };
+    this.publish();
+    this.revision += 1;
     return this.view();
   }
 
@@ -321,7 +358,7 @@ export class SimulationRuntime implements AppBackend {
         this.applyScene();
         break;
       case "invokeCell":
-        this.invoke(command.epoch, command.cellId);
+        await this.invoke(command.epoch, command.cellId);
         break;
     }
     this.revision += 1;
@@ -466,7 +503,7 @@ export class SimulationRuntime implements AppBackend {
       : tile.retention;
   }
 
-  private invoke(epoch: number, cellId: number) {
+  private async invoke(epoch: number, cellId: number) {
     if (this.interactionEpoch !== epoch || !this.frozenActions) {
       throw new Error("Hold the control layer before invoking a task.");
     }
@@ -487,10 +524,28 @@ export class SimulationRuntime implements AppBackend {
       );
       return;
     }
-    this.feedback = message(
-      "success",
-      `Simulation would open “${selected.label}” in Codex.`,
-    );
+    if (!this.options.invokeTask) {
+      this.feedback = message(
+        "success",
+        `Simulation would open “${selected.label}” in Codex.`,
+      );
+      return;
+    }
+    try {
+      await this.options.invokeTask({ ...selected });
+      this.acknowledged.set(selected.resourceId, selected.revision);
+      this.feedback = message(
+        "success",
+        `Opened “${selected.label}” in Codex.`,
+      );
+    } catch (error) {
+      this.feedback = message(
+        "error",
+        error instanceof Error
+          ? error.message
+          : "Codex could not open this task.",
+      );
+    }
   }
 
   private resourceAt(cellId: number): string {
@@ -634,6 +689,7 @@ export class SimulationRuntime implements AppBackend {
             interactionEpoch: this.interactionEpoch,
           }
         : undefined,
+      taskSource: { ...this.taskSource },
       sourceTaskCount: this.sourceTaskCount,
       feedback: this.feedback,
     };
@@ -661,12 +717,12 @@ export class SimulationRuntime implements AppBackend {
   }
 
   private resetTransientState() {
-    this.tasks = initialTasks();
-    this.displayTasks = initialTasks();
+    this.tasks = cloneTasks(this.resetTasks);
+    this.displayTasks = cloneTasks(this.resetTasks);
     this.allocation = new Map();
     this.cancelInteraction();
     this.acknowledged = new Map();
-    this.sourceAvailability = "online";
+    this.sourceAvailability = this.options.sourceAvailability ?? "online";
     this.sourceTaskCount = this.tasks.length;
     this.nextTaskNumber = 7;
     this.generation = 1;
@@ -685,6 +741,13 @@ export class SimulationRuntime implements AppBackend {
     this.store.write(validated);
     this.configuration = validated;
   }
+}
+
+function cloneTasks(tasks: ResolvedTile[]): ResolvedTile[] {
+  return tasks.map((item) => ({
+    ...item,
+    action: { ...item.action },
+  }));
 }
 
 export function parseConfiguration(value: unknown): ConfigurationDocument {

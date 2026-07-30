@@ -4,17 +4,19 @@ import {
   Plus,
 } from "lucide-react";
 
-import type { BoardView } from "../domain/types";
+import type { BoardView, TaskSourceView } from "../domain/types";
 
 interface AssignmentSidebarProps {
   board?: BoardView;
   sourceTaskCount: number;
+  taskSource: TaskSourceView;
   onConfigure: () => void;
 }
 
 export function AssignmentSidebar({
   board,
   sourceTaskCount,
+  taskSource,
   onConfigure,
 }: AssignmentSidebarProps) {
   const occupied = board?.slots.filter((slot) => slot.tile).length ?? 0;
@@ -71,10 +73,18 @@ export function AssignmentSidebar({
         </span>
       </button>
       <div className="sidebar-note">
-        <strong>No chat maintenance</strong>
+        <strong>
+          {taskSource.kind === "codex"
+            ? taskSource.label
+            : "No chat maintenance"}
+        </strong>
         <p>
-          {sourceTaskCount} changing simulated tasks feed one durable physical
-          region.
+          {sourceTaskCount} changing{" "}
+          {taskSource.kind === "codex" ? "Codex" : "simulated"} tasks feed one
+          durable physical region.
+        </p>
+        <p className="source-detail" data-connection={taskSource.connection}>
+          {taskSource.detail}
         </p>
       </div>
     </nav>

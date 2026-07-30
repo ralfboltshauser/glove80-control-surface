@@ -106,22 +106,22 @@ reviews all passed with no remaining blocker. See
 
 ## Milestone 2 — real Codex task board
 
-Status: **not started**
+Status: **reviewing**
 
 Deliver:
 
-- [ ] A supervised stdio JSONL client for the user-installed
+- [x] A supervised stdio JSONL client for the user-installed
       `codex app-server`, owned by Electron main and unavailable to the
       renderer.
-- [ ] Executable discovery/configuration, initialization, capability
+- [x] Executable discovery/configuration, initialization, capability
       detection, bounded queues, restart/backoff, and honest health states.
-- [ ] Dynamic task discovery using only fields exposed by the installed
+- [x] Dynamic task discovery using only fields exposed by the installed
       protocol: identity, title/preview, recency, cwd, parent/subagent
       relationship, turn terminal state, and runtime status where observable.
-- [ ] The Priority allocator source: actionable, working, completed/unread,
+- [x] The Priority allocator source: actionable, working, completed/unread,
       then recent idle, with sticky protected slots and overflow.
-- [ ] Safe local task opening through the documented Codex deep link.
-- [ ] A deterministic fake app-server and recorded redacted fixtures.
+- [x] Safe local task opening through the documented Codex deep link.
+- [x] A deterministic fake app-server and recorded redacted fixtures.
 
 Hard evidence gate:
 
@@ -138,6 +138,11 @@ Acceptance:
 - Killing, corrupting output from, or upgrading the child process cannot block
   the UI or a future keyboard lease.
 - Opening a slot always targets the identity frozen when interaction began.
+
+Local implementation evidence is recorded in
+[Milestone 2 verification](docs/reviews/milestone-2-verification.md). The
+milestone remains in review until the adversarial findings are closed and
+cross-platform package CI passes.
 
 ## Milestone 3 — existing six-cell hardware path
 

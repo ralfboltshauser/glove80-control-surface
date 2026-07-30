@@ -13,6 +13,10 @@ class ElectronBackend implements AppBackend {
   async dispatch(command: RuntimeCommand): Promise<AppViewState> {
     return requireBridge().dispatch(command);
   }
+
+  subscribe(listener: (state: AppViewState) => void): () => void {
+    return requireBridge().onStateChanged(listener);
+  }
 }
 
 export function createBackend(): AppBackend {

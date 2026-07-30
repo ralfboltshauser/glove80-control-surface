@@ -11,12 +11,87 @@ import axe from "axe-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
+import { BrowserSimulationBackend } from "./api/browserSimulation";
 
 describe("App", () => {
   beforeEach(() => {
     window.localStorage.clear();
     window.history.replaceState({}, "", "/");
     delete window.glove80DesktopLifecycle;
+    delete window.glove80ControlSurface;
+  });
+
+  it("distinguishes live Codex discovery from simulated keyboard output", async () => {
+    window.history.replaceState({}, "", "/?demo=1");
+    window.localStorage.setItem(
+      "glove80-control-surface.simulation.configuration.v1",
+      JSON.stringify({
+        schemaVersion: 1,
+        preferences: { brightness: 48, reduceMotion: false },
+        taskBoard: {
+          bindingId: "codex-task-board",
+          cells: [0, 1, 2, 3, 4],
+          workspaceRoots: [],
+        },
+      }),
+    );
+    const runtime = new BrowserSimulationBackend();
+    await runtime.replaceTaskSource({
+      tasks: Array.from({ length: 7 }, (_, index) => ({
+          resourceId:
+            index === 0
+              ? "019fae8a-5cb4-7e70-88d8-d0af1e99032c"
+              : `019fae8a-5cb4-7e70-88d8-d0af1e9903${index}`,
+          label: index === 0 ? "Live Codex task" : `Codex task ${index + 1}`,
+          context: "project",
+          state: "stale",
+          action: { enabled: true },
+          retention: "normal",
+          revision: index + 3,
+        })),
+      availability: "online",
+      source: {
+        kind: "codex",
+        connection: "online",
+        observation: "externalDiscovery",
+        label: "Codex app-server",
+        detail:
+          "Persisted task discovery is online. External live status remains unknown.",
+        executable: "/usr/local/bin/codex",
+        version: "codex-cli test",
+      },
+    });
+    const dispatch = vi.fn(runtime.dispatch.bind(runtime));
+    window.glove80ControlSurface = {
+      bootstrap: runtime.bootstrap.bind(runtime),
+      dispatch,
+      onStateChanged: () => () => undefined,
+    };
+
+    render(<App />);
+
+    expect(
+      await screen.findByText("Live Codex tasks · simulated keyboard"),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Test simulator behavior")).toBeNull();
+    expect(screen.getByText("Live Codex task")).toBeInTheDocument();
+    expect(screen.getByText("Stale")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Open task in Codex" }),
+    ).toBeEnabled();
+    expect(
+      screen.getByText(/“Stale” means unknown, not idle/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText("5 occupied · 2 more tasks")).toBeInTheDocument();
+
+    await userEvent.setup().click(
+      screen.getByRole("button", { name: "Preview controls" }),
+    );
+    expect(
+      await screen.findByText(
+        "5/5 occupied · 2 more tasks · allocation frozen",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("creates one durable ordered task board across both halves", async () => {

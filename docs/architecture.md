@@ -72,6 +72,13 @@ state snapshots and receive safe actions. Loading third-party code is deferred
 until several different integrations have proven a stable contract and a
 threat model exists.
 
+The first real adapter is intentionally small. Electron main supervises one
+user-installed `codex app-server` child over bounded stdio JSONL, validates a
+small `thread/list` response subset, and feeds the existing task-board
+allocator. No separate service, database, generic event bus, or plugin host is
+introduced. Because another Codex process owns the live runtime, persisted
+`notLoaded` tasks are represented as unknown rather than idle.
+
 ### Build and install
 
 Firmware build/install is an explicit developer workflow, not part of the

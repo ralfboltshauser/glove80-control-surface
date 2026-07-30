@@ -19,6 +19,7 @@ import type {
   AppPreferences,
   FeedbackView,
   SemanticState,
+  TaskSourceView,
 } from "./domain/types";
 
 export function App() {
@@ -86,8 +87,8 @@ export function App() {
       <main className="app-loading" aria-busy="true">
         <div className="brand__mark" aria-hidden="true">G80</div>
         <div>
-          <strong>Starting the control-surface simulator…</strong>
-          <span>Loading the versioned topology and local configuration.</span>
+          <strong>Starting Glove80 Control Surface…</strong>
+          <span>Loading local configuration and task discovery.</span>
         </div>
       </main>
     );
@@ -259,6 +260,7 @@ export function App() {
         <FeedbackStrip
           error={error}
           feedback={state.feedback}
+          taskSource={state.taskSource}
           onDismissError={clearError}
         />
         <div className="workspace">
@@ -266,13 +268,16 @@ export function App() {
             <AssignmentSidebar
               board={state.board}
               sourceTaskCount={state.sourceTaskCount}
+              taskSource={state.taskSource}
               onConfigure={beginEditing}
             />
-            <SimulationPanel
-              state={state}
-              pending={pending}
-              dispatch={dispatch}
-            />
+            {state.taskSource.kind === "simulated" && (
+              <SimulationPanel
+                state={state}
+                pending={pending}
+                dispatch={dispatch}
+              />
+            )}
           </div>
           <KeyboardCanvas
             board={state.board}
@@ -293,6 +298,7 @@ export function App() {
           ) : (
             <BoardInspector
               board={state.board}
+              taskSource={state.taskSource}
               selectedCell={selectedCell}
               editing={isEditing}
               draftCells={draftCells}
@@ -327,7 +333,12 @@ export function App() {
           board={state.board}
           error={error}
           feedback={state.feedback}
-          onBurst={() => void dispatch({ kind: "burst" })}
+          simulatedSource={state.taskSource.kind === "simulated"}
+          onBurst={
+            state.taskSource.kind === "simulated"
+              ? () => void dispatch({ kind: "burst" })
+              : undefined
+          }
           onClose={toggleControlLayer}
           onInvoke={(cellId) =>
             void dispatch({
@@ -345,16 +356,15 @@ export function App() {
 
 interface FeedbackStripProps {
   error?: string;
-  feedback?: {
-    tone: "info" | "success" | "warning" | "error";
-    message: string;
-  };
+  feedback?: FeedbackView;
+  taskSource: TaskSourceView;
   onDismissError: () => void;
 }
 
 function FeedbackStrip({
   error,
   feedback,
+  taskSource,
   onDismissError,
 }: FeedbackStripProps) {
   const tone = error ? "error" : feedback?.tone ?? "info";
@@ -371,13 +381,15 @@ function FeedbackStrip({
       role={error ? "alert" : "status"}
     >
       <span className="simulation-pill">
-        Simulated data · no hardware reads or writes
+        {taskSource.kind === "codex"
+          ? "Live Codex tasks · simulated keyboard"
+          : "Simulated data · no hardware reads or writes"}
       </span>
       <span className="feedback-strip__message">
         <Icon size={14} aria-hidden="true" />
         {error ??
           feedback?.message ??
-          "Task, connection, and LED states on this screen are generated locally."}
+          taskSource.detail}
       </span>
       {error && (
         <button

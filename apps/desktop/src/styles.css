@@ -583,6 +583,24 @@ select {
   text-wrap: pretty;
 }
 
+.sidebar-note .source-detail {
+  padding-block-start: var(--space-2);
+  border-block-start: var(--hairline) solid var(--border);
+  overflow-wrap: anywhere;
+}
+
+.source-detail[data-connection="online"] {
+  color: var(--state-completedUnread);
+}
+
+.source-detail[data-connection="degraded"] {
+  color: var(--state-needsInput);
+}
+
+.source-detail[data-connection="offline"] {
+  color: var(--state-failed);
+}
+
 .simulation-panel {
   margin: 0 var(--space-3) var(--space-4);
   border-top: var(--hairline) solid var(--border);
@@ -1192,6 +1210,43 @@ select {
   font-size: 0.6875rem;
   line-height: 1.45;
   text-wrap: pretty;
+}
+
+.source-diagnostics {
+  margin-block-start: var(--space-3);
+  border-block: var(--hairline) solid var(--border);
+}
+
+.source-diagnostics summary {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.source-diagnostics dl {
+  display: grid;
+  gap: 0.4375rem;
+  margin: 0 0 var(--space-3);
+}
+
+.source-diagnostics dl div {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+}
+
+.source-diagnostics dd {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .reorder-controls {

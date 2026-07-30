@@ -13,7 +13,8 @@ interface InteractionHudProps {
   board: BoardView;
   error?: string;
   feedback?: FeedbackView;
-  onBurst: () => void;
+  simulatedSource: boolean;
+  onBurst?: () => void;
   onClose: () => void;
   onInvoke: (cellId: number) => void;
   returnFocusRef: RefObject<HTMLElement | null>;
@@ -23,6 +24,7 @@ export function InteractionHud({
   board,
   error,
   feedback,
+  simulatedSource,
   onBurst,
   onClose,
   onInvoke,
@@ -36,6 +38,11 @@ export function InteractionHud({
   const waitingSlots = adaptive
     ? board.slots.filter((slot) => !slot.tile)
     : [];
+  const capacitySummary = `${occupied}/${board.slots.length} occupied${
+    board.overflow.length > 0
+      ? ` · ${board.overflow.length} more tasks`
+      : ""
+  } · allocation frozen`;
   const dialogRef = useRef<HTMLElement>(null);
   const exitButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -87,18 +94,18 @@ export function InteractionHud({
         <div>
           <span className="hud-live-dot" aria-hidden="true" />
           <strong>Control layer preview</strong>
-          <small>
-            {occupied}/{board.slots.length} occupied · allocation frozen
-          </small>
+          <small>{capacitySummary}</small>
         </div>
         <div>
-          <button
-            className="button button--quiet"
-            type="button"
-            onClick={onBurst}
-          >
-            Inject task burst
-          </button>
+          {onBurst && (
+            <button
+              className="button button--quiet"
+              type="button"
+              onClick={onBurst}
+            >
+              Inject task burst
+            </button>
+          )}
           <button
             ref={exitButtonRef}
             className="icon-button"
@@ -111,8 +118,9 @@ export function InteractionHud({
         </div>
       </div>
       <p className="interaction-hud__action-copy" id="hud-action-copy">
-        Select an occupied slot to simulate its open command. This preview
-        does not launch Codex or write to a keyboard.
+        {simulatedSource
+          ? "Select an occupied slot to simulate its open command. This preview does not launch Codex or write to a keyboard."
+          : "Select an occupied slot to open that task in Codex. Keyboard output remains simulated until the HID milestone."}
       </p>
       <div
         className="interaction-hud__feedback"
@@ -132,8 +140,8 @@ export function InteractionHud({
             key={slot.cellId}
             type="button"
             disabled={!slot.tile?.action.enabled}
-            aria-label={slotActionLabel(slot)}
-            title={slotActionLabel(slot)}
+            aria-label={slotActionLabel(slot, simulatedSource)}
+            title={slotActionLabel(slot, simulatedSource)}
             onClick={() => onInvoke(slot.cellId)}
           >
             <span>{slot.slot + 1}</span>
@@ -162,8 +170,8 @@ export function InteractionHud({
                 key={slot.cellId}
                 type="button"
                 disabled
-                aria-label={slotActionLabel(slot)}
-                title={slotActionLabel(slot)}
+                aria-label={slotActionLabel(slot, simulatedSource)}
+                title={slotActionLabel(slot, simulatedSource)}
               >
                 <span>{slot.slot + 1}</span>
                 <small>{keyName(slot.cellId)}</small>
@@ -193,13 +201,18 @@ function stateLabel(state: NonNullable<BoardView["slots"][number]["tile"]>["stat
   }
 }
 
-function slotActionLabel(slot: BoardView["slots"][number]): string {
+function slotActionLabel(
+  slot: BoardView["slots"][number],
+  simulatedSource: boolean,
+): string {
   const prefix = `Slot ${slot.slot + 1}, ${keyName(slot.cellId)}`;
   if (!slot.tile) {
     return `${prefix}, empty, no action`;
   }
   const availability = slot.tile.action.enabled
-    ? "simulate open action"
+    ? simulatedSource
+      ? "simulate open action"
+      : "open task in Codex"
     : slot.tile.action.explanation ?? "action unavailable";
   return `${prefix}, ${slot.tile.label}, ${stateLabel(slot.tile.state)}, ${availability}`;
 }

@@ -12,8 +12,8 @@
     "build:renderer": "tsc --noEmit && vite build",
     "check": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit && vitest run",
     "dev": "node scripts/dev.mjs",
-    "package": "pnpm build && electron-builder",
-    "package:dir": "pnpm build && node scripts/package-dir.mjs",
+    "package": "pnpm build && electron-builder --publish never",
+    "package:dir": "pnpm build && electron-builder --dir --publish never",
     "smoke:packaged": "node scripts/smoke-packaged.mjs",
     "start": "electron .",
     "test": "vitest run"
@@ -21,7 +21,7 @@
   "dependencies": {
     "@glove80-control-surface/control-core": "workspace:*",
     "lucide-react": "1.27.0",
-    "node-hid": "3.3.0",
+    "node-hid": "3.4.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },

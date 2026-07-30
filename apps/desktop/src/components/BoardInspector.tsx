@@ -13,10 +13,12 @@ import { keyName } from "../domain/keyboardGeometry";
 import type {
   BoardView,
   SemanticState,
+  TaskSourceView,
 } from "../domain/types";
 
 interface BoardInspectorProps {
   board?: BoardView;
+  taskSource: TaskSourceView;
   selectedCell: number;
   editing: boolean;
   draftCells: number[];
@@ -59,11 +61,13 @@ export function BoardInspector(props: BoardInspectorProps) {
     onRemoveTask,
     onPreviewAction,
     onSetTaskState,
+    taskSource,
   } = props;
   const slot = board.slots.find(
     (candidate) => candidate.cellId === selectedCell,
   );
   const tile = slot?.tile;
+  const occupied = board.slots.filter((candidate) => candidate.tile).length;
 
   return (
     <aside className="inspector" aria-label="Codex task board inspector">
@@ -77,10 +81,7 @@ export function BoardInspector(props: BoardInspectorProps) {
         </span>
         <div>
           <strong>{board.cells.length} physical keys</strong>
-          <p>
-            {board.slots.filter((candidate) => candidate.tile).length} active
-            slots · {board.overflow.length} waiting
-          </p>
+          <p>{`${occupied} occupied · ${board.overflow.length} more tasks`}</p>
         </div>
       </div>
       <section className="inspector-section">
@@ -103,48 +104,58 @@ export function BoardInspector(props: BoardInspectorProps) {
               </span>
             </div>
             <p title={tile.context}>{tile.context}</p>
-            <small>Runtime revision {tile.revision}</small>
+            <small>Observed revision {tile.revision}</small>
             {tile.retention === "protected" && (
               <div className="retention-note">
                 <ShieldCheck size={15} />
                 Keeps this key while it needs attention.
               </div>
             )}
-            <label className="field-label" htmlFor="simulated-task-state">
-              Simulated task state
-            </label>
-            <select
-              id="simulated-task-state"
-              value={tile.state}
-              disabled={pending || tile.state === "stale"}
-              onChange={(event) =>
-                onSetTaskState(
-                  selectedCell,
-                  event.target.value as SemanticState,
-                )
-              }
-            >
-              <option value="idle">Idle</option>
-              <option value="working">Working</option>
-              <option value="completedUnread">Completed · unread</option>
-              <option value="needsInput">Needs input</option>
-              <option value="failed">Failed</option>
-            </select>
+            {taskSource.kind === "simulated" && (
+              <>
+                <label className="field-label" htmlFor="simulated-task-state">
+                  Simulated task state
+                </label>
+                <select
+                  id="simulated-task-state"
+                  value={tile.state}
+                  disabled={pending || tile.state === "stale"}
+                  onChange={(event) =>
+                    onSetTaskState(
+                      selectedCell,
+                      event.target.value as SemanticState,
+                    )
+                  }
+                >
+                  <option value="idle">Idle</option>
+                  <option value="working">Working</option>
+                  <option value="completedUnread">Completed · unread</option>
+                  <option value="needsInput">Needs input</option>
+                  <option value="failed">Failed</option>
+                </select>
+              </>
+            )}
             <button
               className="button button--secondary button--full"
               type="button"
               disabled={pending || !tile.action.enabled}
-              aria-describedby="simulated-open-explanation"
+              aria-describedby="task-open-explanation"
               onClick={() => onPreviewAction(selectedCell)}
             >
-              <Play size={16} /> Simulate open action
+              <Play size={16} />{" "}
+              {taskSource.kind === "codex"
+                ? "Open task in Codex"
+                : "Simulate open action"}
             </button>
             <p
               className="action-explanation"
-              id="simulated-open-explanation"
+              id="task-open-explanation"
             >
-              Checks this key’s action in the local preview. Codex will not
-              open.
+              {taskSource.kind === "codex"
+                ? tile.action.enabled
+                  ? "Uses the admitted local codex:// thread link. No command is executed."
+                  : tile.action.explanation
+                : "Checks this key’s action in the local preview. Codex will not open."}
             </p>
             {(tile.state === "completedUnread" ||
               tile.state === "failed") && (
@@ -157,14 +168,16 @@ export function BoardInspector(props: BoardInspectorProps) {
                 <Check size={16} /> Acknowledge result
               </button>
             )}
-            <button
-              className="button button--text button--full"
-              type="button"
-              disabled={pending}
-              onClick={() => onRemoveTask(selectedCell)}
-            >
-              Remove simulated task
-            </button>
+            {taskSource.kind === "simulated" && (
+              <button
+                className="button button--text button--full"
+                type="button"
+                disabled={pending}
+                onClick={() => onRemoveTask(selectedCell)}
+              >
+                Remove simulated task
+              </button>
+            )}
           </div>
         ) : (
           <div className="empty-task">
@@ -179,8 +192,8 @@ export function BoardInspector(props: BoardInspectorProps) {
       </section>
       <section className="inspector-section board-health">
         <div>
-          <span>Source</span>
-          <strong>{board.collectionAvailability}</strong>
+          <span>{taskSource.kind === "codex" ? "Codex" : "Source"}</span>
+          <strong>{taskSource.connection}</strong>
         </div>
         <div>
           <span>Protected</span>
@@ -198,6 +211,34 @@ export function BoardInspector(props: BoardInspectorProps) {
           <strong>{board.overflow.length}</strong>
         </div>
       </section>
+      {taskSource.kind === "codex" && (
+        <>
+          <p className="inspector-footnote">
+            External discovery follows changing tasks, but another Codex
+            process’s exact live state is unavailable. “Stale” means unknown,
+            not idle.
+          </p>
+          <details className="source-diagnostics">
+            <summary>Codex connection details</summary>
+            <dl>
+              <div>
+                <dt>Observation</dt>
+                <dd>External discovery</dd>
+              </div>
+              <div>
+                <dt>Version</dt>
+                <dd>{taskSource.version ?? "Detecting…"}</dd>
+              </div>
+              <div>
+                <dt>Executable</dt>
+                <dd title={taskSource.executable}>
+                  {taskSource.executable ?? "Not found"}
+                </dd>
+              </div>
+            </dl>
+          </details>
+        </>
+      )}
       <button
         className="button button--secondary button--full"
         type="button"

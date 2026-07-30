@@ -1,4 +1,8 @@
-import { contextBridge, ipcRenderer } from "electron";
+import {
+  contextBridge,
+  ipcRenderer,
+  type IpcRendererEvent,
+} from "electron";
 
 import type {
   AppViewState,
@@ -9,6 +13,7 @@ import {
   dispatchChannel,
   draftDirtyChannel,
   saveDraftChannel,
+  stateChangedChannel,
 } from "./channels";
 
 contextBridge.exposeInMainWorld("glove80ControlSurface", {
@@ -16,6 +21,14 @@ contextBridge.exposeInMainWorld("glove80ControlSurface", {
     ipcRenderer.invoke(bootstrapChannel),
   dispatch: (command: RuntimeCommand): Promise<AppViewState> =>
     ipcRenderer.invoke(dispatchChannel, command),
+  onStateChanged: (
+    listener: (state: AppViewState) => void,
+  ): (() => void) => {
+    const wrapped = (_event: IpcRendererEvent, state: AppViewState) =>
+      listener(state);
+    ipcRenderer.on(stateChangedChannel, wrapped);
+    return () => ipcRenderer.removeListener(stateChangedChannel, wrapped);
+  },
 });
 
 contextBridge.exposeInMainWorld("glove80DesktopLifecycle", {

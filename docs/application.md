@@ -75,6 +75,11 @@ state logic. Use direct construction and small test fakes; do not add a
 dependency-injection framework, event broker, local RPC server, daemon, worker
 process, or public plugin loader.
 
+Milestone 2 follows that rule directly: three plain Electron-main modules
+supervise Codex, decode its narrow protocol subset, and publish semantic tasks
+through the existing core API. The only renderer addition is a push
+subscription for fresh immutable view state.
+
 `AppCoordinator` is the single writer for runtime application state. Device
 events, integration events, UI commands, and persistence results are serialized
 through it. The UI observes derived immutable view state. It coordinates

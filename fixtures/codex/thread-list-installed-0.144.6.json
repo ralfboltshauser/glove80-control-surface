@@ -1,0 +1,58 @@
+{
+  "data": [
+    {
+      "id": "019fae8a-5cb4-7e70-88d8-d0af1e99032c",
+      "sessionId": "019fae8a-5cb4-7e70-88d8-d0af1e99032c",
+      "forkedFromId": null,
+      "parentThreadId": null,
+      "preview": "Build the Glove80 control surface",
+      "ephemeral": false,
+      "modelProvider": "openai",
+      "createdAt": 1785400000,
+      "updatedAt": 1785400120,
+      "recencyAt": 1785400120,
+      "status": {
+        "type": "notLoaded"
+      },
+      "path": null,
+      "cwd": "/redacted/glove80-control-surface",
+      "cliVersion": "0.144.6",
+      "source": "appServer",
+      "threadSource": null,
+      "agentNickname": null,
+      "agentRole": null,
+      "gitInfo": null,
+      "name": "Glove80 control surface",
+      "turns": []
+    },
+    {
+      "id": "019fae8a-5cb4-7e70-88d8-d0af1e99032d",
+      "sessionId": "019fae8a-5cb4-7e70-88d8-d0af1e99032c",
+      "forkedFromId": null,
+      "parentThreadId": "019fae8a-5cb4-7e70-88d8-d0af1e99032c",
+      "preview": "Review the Electron lifecycle",
+      "ephemeral": false,
+      "modelProvider": "openai",
+      "createdAt": 1785400010,
+      "updatedAt": 1785400100,
+      "recencyAt": 1785400100,
+      "status": {
+        "type": "notLoaded"
+      },
+      "path": null,
+      "cwd": "/redacted/glove80-control-surface",
+      "cliVersion": "0.144.6",
+      "source": {
+        "subAgent": "threadSpawn"
+      },
+      "threadSource": null,
+      "agentNickname": "Reviewer",
+      "agentRole": null,
+      "gitInfo": null,
+      "name": null,
+      "turns": []
+    }
+  ],
+  "nextCursor": null,
+  "backwardsCursor": null
+}

@@ -17,8 +17,8 @@ importers:
         specifier: 1.27.0
         version: 1.27.0(react@19.2.8)
       node-hid:
-        specifier: 3.3.0
-        version: 3.3.0
+        specifier: 3.4.0
+        version: 3.4.0
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -1706,8 +1706,9 @@ packages:
   node-addon-api@1.7.2:
     resolution: {integrity: sha512-ibPK3iA+vaY1eEjESkQkM0BbCqFOaZMiXRTtdB0u7b4djtY6JnsjvPdUHVMg6xQt3B8fpTTWHI9A+ADjM9frzg==}
 
-  node-addon-api@3.2.1:
-    resolution: {integrity: sha512-mmcei9JghVNDYydghQmeDX8KoAm0FAiYyIcUt/N4nhyAipB17pllZQDOJD2fotxABnt4Mdz+dKTO7eftLg4d0A==}
+  node-addon-api@8.9.0:
+    resolution: {integrity: sha512-ekZMeaaIzSQTSpr7X2X3iJM7lTzgnx8ahAG9pJfT/7+14mlEM8ZYQ9cgCDvSSRbReFK0oHli3WrZdCiRsgAT9Q==}
+    engines: {node: ^18 || ^20 || >= 21}
 
   node-api-version@0.2.1:
     resolution: {integrity: sha512-2xP/IGGMmmSQpI1+O/k72jF/ykvZ89JeuKX3TLJAYPDVLUalrshrLHkeVcCCZqG/eEa635cr8IBYzgnDvM2O8Q==}
@@ -1717,8 +1718,8 @@ packages:
     engines: {node: ^20.17.0 || >=22.9.0}
     hasBin: true
 
-  node-hid@3.3.0:
-    resolution: {integrity: sha512-j+dFgJLRAE0nufQKXk3IfS6T6YuHhCgMvz4TrG0sgtb6DSCdYpfJ1etcdmeCmPQjUgO+yo32ktVrRliNs/+fmg==}
+  node-hid@3.4.0:
+    resolution: {integrity: sha512-Br7EO3bJARAJBdtcsGzF/Vs5TjfbkaMdglqLQ+Rk9GOGgVqv5DxYUVH5znLerJU+OfBWw8sd552Ujcprz1bG9g==}
     engines: {node: '>=10.16'}
     hasBin: true
 
@@ -3904,7 +3905,7 @@ snapshots:
   node-addon-api@1.7.2:
     optional: true
 
-  node-addon-api@3.2.1: {}
+  node-addon-api@8.9.0: {}
 
   node-api-version@0.2.1:
     dependencies:
@@ -3923,9 +3924,9 @@ snapshots:
       undici: 6.28.0
       which: 6.0.1
 
-  node-hid@3.3.0:
+  node-hid@3.4.0:
     dependencies:
-      node-addon-api: 3.2.1
+      node-addon-api: 8.9.0
       pkg-prebuilds: 1.1.0
 
   node-releases@2.0.51: {}

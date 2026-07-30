@@ -6,6 +6,7 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
+  shell,
   type IpcMainEvent,
   type IpcMainInvokeEvent,
 } from "electron";
@@ -16,6 +17,7 @@ import {
   dispatchChannel,
   draftDirtyChannel,
   saveDraftChannel,
+  stateChangedChannel,
 } from "./channels";
 import {
   CloseLifecycle,
@@ -23,10 +25,13 @@ import {
   type CloseIntent,
 } from "./closeLifecycle";
 import { parseRuntimeCommand } from "./commandValidation";
+import { isCodexThreadId } from "./codexProtocol";
+import { CodexTaskSource } from "./codexTaskSource";
 import { FileConfigurationStore } from "./fileConfigurationStore";
 
 let mainWindow: BrowserWindow | undefined;
 let runtime: SimulationRuntime | undefined;
+let codexTaskSource: CodexTaskSource | undefined;
 const closeLifecycle = new CloseLifecycle();
 
 app.setName("Glove80 Control Surface");
@@ -63,6 +68,7 @@ if (process.argv.includes("--smoke-test")) {
   });
 
   app.on("will-quit", () => {
+    codexTaskSource?.stop();
     ipcMain.removeHandler(bootstrapChannel);
     ipcMain.removeHandler(dispatchChannel);
     ipcMain.removeAllListeners(draftDirtyChannel);
@@ -77,6 +83,18 @@ function initializeApplication(): void {
   );
   runtime = new SimulationRuntime(
     new FileConfigurationStore(configurationPath),
+    {
+      initialTasks: [],
+      sourceAvailability: "unavailable",
+      taskSource: {
+        kind: "codex",
+        connection: "connecting",
+        observation: "externalDiscovery",
+        label: "Codex app-server",
+        detail: "Discovering a user-installed Codex CLI…",
+      },
+      invokeTask: openCodexTask,
+    },
   );
 
   ipcMain.handle(bootstrapChannel, (event) => {
@@ -94,9 +112,16 @@ function initializeApplication(): void {
   });
 
   createMainWindow();
+  codexTaskSource = new CodexTaskSource(requireRuntime(), publishState);
+  void codexTaskSource.start();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
   });
+}
+
+function publishState(state: Awaited<ReturnType<SimulationRuntime["bootstrap"]>>): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send(stateChangedChannel, state);
 }
 
 function createMainWindow(): void {
@@ -250,4 +275,19 @@ async function runNativeModuleSmokeTest(): Promise<void> {
     console.error("Packaged native-module smoke test failed.", error);
     app.exit(1);
   }
+}
+
+async function openCodexTask(task: { resourceId: string }): Promise<void> {
+  if (!isCodexThreadId(task.resourceId)) {
+    throw new Error("Codex refused an invalid local task identity.");
+  }
+  if (process.platform !== "darwin" && process.platform !== "win32") {
+    throw new Error(
+      "Opening Codex Desktop tasks is unavailable on this platform.",
+    );
+  }
+  await shell.openExternal(
+    `codex://threads/${encodeURIComponent(task.resourceId)}`,
+    { activate: true },
+  );
 }

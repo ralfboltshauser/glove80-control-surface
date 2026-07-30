@@ -116,12 +116,24 @@ export interface FeedbackView {
   message: string;
 }
 
+export interface TaskSourceView {
+  kind: "simulated" | "codex";
+  connection: "connecting" | "online" | "degraded" | "offline";
+  observation: "simulated" | "externalDiscovery" | "ownedLive";
+  label: string;
+  detail: string;
+  executable?: string;
+  version?: string;
+  lastSyncedAtMillis?: number;
+}
+
 export interface AppViewState {
   revision: number;
   mode: "simulation";
   configuration: ConfigurationDocument;
   device: DeviceView;
   board?: BoardView;
+  taskSource: TaskSourceView;
   sourceTaskCount: number;
   feedback?: FeedbackView;
 }
@@ -160,4 +172,5 @@ export type RuntimeCommand =
 export interface AppBackend {
   bootstrap(): Promise<AppViewState>;
   dispatch(command: RuntimeCommand): Promise<AppViewState>;
+  subscribe?(listener: (state: AppViewState) => void): () => void;
 }

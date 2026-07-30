@@ -22,15 +22,27 @@ export function useRuntime(): RuntimeController {
   const [state, setState] = useState<AppViewState>();
   const [error, setError] = useState<string>();
   const [pendingCount, setPendingCount] = useState(0);
+  const acceptedRevision = useRef(-1);
+  const acceptState = useCallback((nextState: AppViewState) => {
+    if (nextState.revision < acceptedRevision.current) return;
+    acceptedRevision.current = nextState.revision;
+    setState(nextState);
+    setError(undefined);
+  }, []);
 
   useEffect(() => {
     let active = true;
+    const unsubscribe = backendInstance.subscribe?.((nextState) => {
+      if (active) {
+        acceptState(nextState);
+      }
+    });
     setPendingCount((count) => count + 1);
     backendInstance
       .bootstrap()
       .then((nextState) => {
         if (active) {
-          setState(nextState);
+          acceptState(nextState);
         }
       })
       .catch((reason: unknown) => {
@@ -43,8 +55,9 @@ export function useRuntime(): RuntimeController {
       });
     return () => {
       active = false;
+      unsubscribe?.();
     };
-  }, [backendInstance]);
+  }, [acceptState, backendInstance]);
 
   const dispatch = useCallback((command: RuntimeCommand) => {
     setPendingCount((count) => count + 1);
@@ -54,8 +67,7 @@ export function useRuntime(): RuntimeController {
     queue.current = result.catch(() => undefined);
     result
       .then((nextState) => {
-        setState(nextState);
-        setError(undefined);
+        acceptState(nextState);
       })
       .catch((reason: unknown) => {
         setError(errorMessage(reason));
@@ -64,7 +76,7 @@ export function useRuntime(): RuntimeController {
         setPendingCount((count) => Math.max(0, count - 1));
       });
     return result;
-  }, [backendInstance]);
+  }, [acceptState, backendInstance]);
 
   return {
     state,

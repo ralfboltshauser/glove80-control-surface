@@ -8,9 +8,9 @@ into a software control surface without giving up its normal keyboard layout.
 Desktop integrations can attach live state and actions to physical keys.
 
 > [!IMPORTANT]
-> This repository currently runs as a deterministic desktop simulator. It does
-> not yet contain firmware that should be flashed, and no release is currently
-> installable.
+> The desktop app can now discover real local Codex tasks, while the keyboard
+> side remains simulated. It does not yet contain firmware that should be
+> flashed, and no release is currently installable.
 
 ## The idea
 
@@ -36,11 +36,12 @@ The first product has two integrations:
 None of those concepts belong in the firmware. They are host-side integrations
 using a generic control-surface protocol.
 
-![Packaged Electron task-board editor in dark mode](docs/screenshots/milestone-1/electron-native-dark.png)
+![Packaged Electron task board showing real local Codex tasks](docs/screenshots/milestone-2/live-codex-packaged-dark.png)
 
-The screenshot is the packaged Milestone 1 Electron application using
-generated tasks. It performs no hardware reads or writes and is not a claim
-that 80-cell firmware is already installed.
+The screenshot is the packaged Electron application reading persisted task
+metadata from the user-installed Codex app-server. The five illuminated cells
+are still a simulator preview. Startup performs no keyboard read or write and
+is not a claim that 80-cell firmware is already installed.
 
 ## Product model
 
@@ -106,11 +107,12 @@ evidence-gated expansions.
 ## Repository status
 
 The repository now contains an Electron/React desktop application, a
-state-owning TypeScript simulator, pure protocol and control-core packages, a
-complete simulated 80-cell position editor, a control-layer HUD prototype,
-atomic persistence, shared native/browser conformance fixtures, and the
-specifications that govern each implementation milestone. No firmware in this
-repository should be flashed yet.
+supervised read-only Codex task source, a state-owning TypeScript control core,
+pure protocol and control-core packages, a complete simulated 80-cell position
+editor, a control-layer HUD prototype, atomic persistence, shared
+native/browser conformance fixtures, and the specifications that govern each
+implementation milestone. No firmware in this repository should be flashed
+yet.
 
 - [Executable milestones](MILESTONES.md)
 - [Roadmap](docs/roadmap.md)

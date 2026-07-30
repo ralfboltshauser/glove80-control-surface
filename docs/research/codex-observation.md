@@ -52,9 +52,13 @@ Primary implementation references:
 - [Official app-server guide](https://learn.chatgpt.com/docs/app-server)
 
 The local state database also emitted malformed-image warnings during these
-probes. Normal filesystem fallback still listed tasks. The product must not
-attempt to repair or reset the user's Codex database. v0 filters returned
-records client-side and reports degraded discovery honestly.
+probes. On 2026-07-30, `thread/list` with `useStateDbOnly: true` returned zero
+rows from both installed binaries, while the documented default rollout scan
+listed current tasks. v0 therefore uses the official default listing path,
+which may refresh Codex's metadata index from its own persisted rollout logs
+but does not resume or change a task. The product never repairs or resets the
+database directly, filters returned records client-side, and reports degraded
+discovery honestly.
 
 ## Installed protocol surface
 

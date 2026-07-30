@@ -35,11 +35,23 @@ describe("Electron backend selection", () => {
         syncStatus: "idle",
         rightHalfConnected: true,
       },
+      taskSource: {
+        kind: "codex",
+        connection: "online",
+        observation: "externalDiscovery",
+        label: "Codex app-server",
+        detail: "Persisted task discovery",
+      },
       sourceTaskCount: 0,
     } satisfies AppViewState;
     const bootstrap = vi.fn().mockResolvedValue(view);
     const dispatch = vi.fn().mockResolvedValue(view);
-    window.glove80ControlSurface = { bootstrap, dispatch };
+    const onStateChanged = vi.fn().mockReturnValue(() => undefined);
+    window.glove80ControlSurface = {
+      bootstrap,
+      dispatch,
+      onStateChanged,
+    };
 
     const backend = createBackend();
     await expect(backend.bootstrap()).resolves.toBe(view);
