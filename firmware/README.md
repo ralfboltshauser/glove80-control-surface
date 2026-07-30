@@ -16,27 +16,36 @@ Create the exact surface source from a clean checkout:
 ```sh
 git checkout 2f73a230e2fc7b2bd64a9736181e87bf54338131
 git am /path/to/glove80-control-surface/firmware/patches/0001-leased-glove80-control-surface.patch
+git am /path/to/glove80-control-surface/firmware/patches/0002-split-ack-notification.patch
+git am /path/to/glove80-control-surface/firmware/patches/0003-harden-leases-and-toggle-control.patch
+git am /path/to/glove80-control-surface/firmware/patches/0004-harden-one-shot-interaction-and-split-deadlines.patch
 ```
 
 `build-pair.sh surface` then verifies that the checkout is clean and that its
 complete diff from the pinned commit has SHA-256
-`39023308788d4f4680174c8a5e5736027724f2bdc541c876f9fe98b0fc8e2364`.
+`b766ac24afa52b580a88bd69e292678a965f2161bf9493a30c44af2ad44d9d75`.
 It also verifies the pinned Zephyr revision and SDK version before compiling.
 
 The checked-in MoErgo Layout Editor export is immutable input. The generator
 refuses anything except the recorded Swiss v8 SHA-256, preserves the original
-four layers, replaces exactly the two Magic trigger bindings, and appends one
-generated Control layer. No script in this repository flashes a keyboard.
+four layers unchanged and appends one generated Control layer plus a Magic+1
+one-shot chord. No script in this repository flashes a keyboard.
 
 Artifacts are complete pairs:
 
-- `glove80_lh.uf2` — USB host protocol, left compositor, split coordinator;
-- `glove80_rh.uf2` — right compositor, split snapshot receiver, independent
+- `glove80_surface_lh.uf2` — USB host protocol, left compositor, split coordinator;
+- `glove80_surface_rh.uf2` — right compositor, split snapshot receiver, independent
   lease.
 
-Both halves are built from the same patch and release identity. Ordinary typing remains the four
-original Base, Lower, Magic, and Factory layers unless the separately generated
-momentary interaction layer is active.
+Both halves are built from the same patch and release identity. Ordinary typing
+remains the four original Base, Lower, Magic, and Factory layers. Pressing
+Magic+1 together arms one action on the separately generated Control layer
+while a leased USB session is live. One low-brightness left LED pulses while
+armed. The first selected key is emitted to the host and Control exits when
+that key is released; Magic+1 cancels, and five seconds without an action
+auto-cancels. A key held for five seconds receives a matching synthetic release
+before Control exits. This preserves the original Magic tap and hold bindings
+and leaves every one of the 80 keys individually actionable.
 
 The firmware wire identity is deliberately smaller than the UI model:
 
@@ -83,6 +92,6 @@ node firmware/scripts/verify-release.mjs \
 Verification also reconstructs each side-labelled UF2, compares it with that
 side's compiled binary, checks the side-specific UF2 family, and refuses any
 write outside the Glove80 application partition (`0x26000..<0xec000`). It
-compares the compiled four recovery layers with the first four surface layers,
-allowing only the two generated Magic substitutions, and whitelists the small
+compares the compiled four recovery layers with the first four surface layers
+byte-for-byte, verifies the generated one-shot chord, and whitelists the small
 Kconfig delta.

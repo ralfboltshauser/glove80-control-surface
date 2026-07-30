@@ -298,8 +298,8 @@ pickers, macros, or firmware build controls in the runtime workspace.
   and editable in the inspector.
 - Double-click focuses the first editable inspector control.
 - Selecting a cell in software sends a temporary identify preview.
-- Pressing a cell while the physical interaction trigger is held selects the
-  same cell when explicit editor capture mode is active. Capture consumes the
+- Pressing a cell while Control is armed selects the same cell when explicit
+  editor capture mode is active. Capture consumes the
   app event as selection and never dispatches the binding's action.
 - Provide zoom, fit, keyboard navigation, and an accessible non-spatial binding
   list.

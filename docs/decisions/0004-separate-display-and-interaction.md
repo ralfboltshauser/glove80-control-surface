@@ -13,13 +13,16 @@ one temporary layer hides useful state and creates ambiguous key behavior.
 
 Ambient lighting may remain active during normal typing according to each
 binding's visibility policy. Key presses become integration actions only while
-one momentary interaction trigger is held and a live desktop session exists.
+the one-shot Control layer is armed and a live desktop lease exists. Magic+1
+arms one action; the same chord cancels. Releasing an action key, five-second
+inactivity, five-second maximum hold, expiry, or close exits without another
+action. Hold timeout emits a matching Up before exit.
 
 ## Consequences
 
 - Status remains visible without a gesture.
 - An illuminated key still performs its normal typing function unless
-  interaction mode is held.
+  interaction mode is armed.
 - A runtime HUD is the leading discoverability hypothesis for labeling actions;
   it must be validated with users rather than assumed sufficient.
 - Firmware maintains separate display-session and interaction-mode state.

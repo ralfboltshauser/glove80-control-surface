@@ -60,6 +60,11 @@ describe("complete 80-cell surface device", () => {
         usagePage: 1,
         usage: 6,
       },
+      {
+        ...genericDescriptor,
+        usagePage: 1,
+        usage: 6,
+      },
     ]);
     const scheduler = new FakeScheduler();
     const surface = new GenericSurfaceDevice(
@@ -129,6 +134,93 @@ describe("complete 80-cell surface device", () => {
     });
     expect(transport.appliedCells).toHaveLength(80);
     await surface.disable();
+  });
+
+  it("waits for a delayed right-half acknowledgement before reporting the complete scene", async () => {
+    const transport = new FakeFirmwareTransport([genericDescriptor]);
+    transport.rightSyncingStatusResponses = 3;
+    const scheduler = new FakeScheduler();
+    const surface = new GenericSurfaceDevice(
+      transport,
+      scheduler,
+      10_000,
+      () => sessionId(18),
+    );
+    await surface.setDesired(fullScene(12));
+    await surface.enable();
+
+    expect(scheduler.waits).toEqual([100, 100, 100]);
+    expect(
+      transport.hostPackets.filter(
+        (packet) => packet.kind === PacketKind.StatusQuery,
+      ),
+    ).toHaveLength(4);
+    expect(surface.snapshot()).toMatchObject({
+      connection: "connected",
+      applied: {
+        generation: 12,
+        leftGeneration: 12,
+        rightGeneration: 12,
+        disposition: "applied",
+      },
+    });
+    await surface.disable();
+  });
+
+  it("bounds right-half acknowledgement polling and reports a partial scene", async () => {
+    const transport = new FakeFirmwareTransport([genericDescriptor]);
+    transport.rightSyncingStatusResponses = 100;
+    const scheduler = new FakeScheduler();
+    const surface = new GenericSurfaceDevice(
+      transport,
+      scheduler,
+      10_000,
+      () => sessionId(19),
+    );
+    await surface.setDesired(fullScene(13));
+    await surface.enable();
+
+    expect(scheduler.waits).toHaveLength(20);
+    expect(
+      transport.hostPackets.filter(
+        (packet) => packet.kind === PacketKind.StatusQuery,
+      ),
+    ).toHaveLength(21);
+    expect(surface.snapshot()).toMatchObject({
+      connection: "partial",
+      applied: {
+        generation: 13,
+        leftGeneration: 13,
+        rightGeneration: undefined,
+        disposition: "partial",
+      },
+    });
+    await surface.disable();
+  });
+
+  it("cancels right-half polling before another status write when disabled", async () => {
+    const transport = new FakeFirmwareTransport([genericDescriptor]);
+    transport.rightSyncingStatusResponses = 100;
+    const scheduler = new BlockingWaitScheduler();
+    const surface = new GenericSurfaceDevice(
+      transport,
+      scheduler,
+      10_000,
+      () => sessionId(20),
+    );
+    await surface.setDesired(fullScene(14));
+    const enabling = surface.enable();
+    await scheduler.waitStarted();
+    const disabling = surface.disable();
+    scheduler.releaseWait();
+    await Promise.all([enabling, disabling]);
+
+    expect(
+      transport.hostPackets.filter(
+        (packet) => packet.kind === PacketKind.StatusQuery,
+      ),
+    ).toHaveLength(1);
+    expect(surface.snapshot().connection).toBe("disabled");
   });
 
   it("coalesces superseded fragments and commits only the newest complete generation", async () => {
@@ -360,6 +452,19 @@ describe("complete 80-cell surface device", () => {
       "interactionModeEntered",
       "interactionModeExited",
     ]);
+    await waitFor(
+      () =>
+        transport.hostPackets.filter(
+          (packet) => packet.kind === PacketKind.CloseSession,
+        ).length === 1 &&
+        transport.hostPackets.filter(
+          (packet) => packet.kind === PacketKind.OpenSession,
+        ).length === 2,
+    );
+    expect(surface.snapshot()).toMatchObject({
+      connection: "connected",
+      applied: { generation: 1 },
+    });
     await surface.disable();
   });
 
@@ -438,6 +543,90 @@ describe("complete 80-cell surface device", () => {
     scheduler.advanceToNext();
     await waitFor(() => surface.snapshot().applied?.generation === 1);
     expect(surface.snapshot().applied?.generation).toBe(1);
+    expect(
+      transport.hostPackets.filter(
+        (packet) => packet.kind === PacketKind.CloseSession,
+      ),
+    ).toHaveLength(1);
+    expect(
+      transport.hostPackets.filter(
+        (packet) => packet.kind === PacketKind.OpenSession,
+      ),
+    ).toHaveLength(2);
+    await surface.disable();
+  });
+
+  it("keeps discovery alive and reconnects after an idle no-scene disconnect", async () => {
+    const transport = new FakeFirmwareTransport([genericDescriptor]);
+    const scheduler = new FakeScheduler();
+    const surface = new GenericSurfaceDevice(
+      transport,
+      scheduler,
+      10_000,
+      () => sessionId(24),
+    );
+    await surface.enable();
+    expect(surface.snapshot()).toMatchObject({
+      connection: "connected",
+    });
+    expect(surface.snapshot().desiredGeneration).toBeUndefined();
+    expect(surface.snapshot().applied).toBeUndefined();
+
+    transport.failNextRead = true;
+    await waitFor(() => surface.snapshot().connection === "reconnecting");
+    scheduler.advanceToNext();
+    await waitFor(() => surface.snapshot().connection === "connected");
+
+    expect(surface.snapshot().detail).toMatch(/no scene is assigned/i);
+    expect(transport.openConnections).toBe(1);
+    await surface.disable();
+  });
+
+  it("clears stale host state on firmware expiry and restores the desired scene", async () => {
+    const transport = new FakeFirmwareTransport([genericDescriptor]);
+    const scheduler = new FakeScheduler();
+    const surface = new GenericSurfaceDevice(
+      transport,
+      scheduler,
+      10_000,
+      () => sessionId(25),
+    );
+    const snapshots: string[] = [];
+    surface.subscribe((snapshot) => snapshots.push(snapshot.detail));
+    await surface.setDesired(fullScene(15));
+    await surface.enable();
+
+    transport.emitDevicePacket(40, {
+      kind: PacketKind.SceneExpired,
+      sessionId: sessionId(25),
+      generation: 15 as SceneGeneration,
+    });
+    await waitFor(
+      () =>
+        transport.hostPackets.filter(
+          (packet) => packet.kind === PacketKind.SceneCommit,
+        ).length === 2,
+    );
+    await waitFor(() => surface.snapshot().applied?.generation === 15);
+
+    expect(snapshots.some((detail) => /firmware lease expired/i.test(detail)))
+      .toBe(true);
+    expect(surface.snapshot()).toMatchObject({
+      connection: "connected",
+      applied: { generation: 15, disposition: "applied" },
+    });
+    scheduler.advanceToNext();
+    await waitFor(
+      () =>
+        transport.hostPackets.filter(
+          (packet) => packet.kind === PacketKind.RenewSession,
+        ).length === 1,
+    );
+    expect(
+      transport.hostPackets.filter(
+        (packet) => packet.kind === PacketKind.CloseSession,
+      ),
+    ).toHaveLength(0);
     await surface.disable();
   });
 
@@ -521,6 +710,7 @@ class FakeFirmwareTransport implements HidTransport {
   appliedCells: CellPresentation[] = [];
   capabilities = simulatedGlove80Capabilities();
   rightConnected = true;
+  rightSyncingStatusResponses = 0;
   failNextWrite = false;
   failNextRead = false;
   openConnections = 0;
@@ -615,6 +805,12 @@ class FakeFirmwareTransport implements HidTransport {
     ) {
       this.interactionEpoch = undefined;
     }
+    if (packet.kind === PacketKind.SceneExpired) {
+      this.sessionOpen = false;
+      this.appliedCells = [];
+      this.centralGeneration = undefined;
+      this.rightGeneration = undefined;
+    }
     this.inputQueue.push(encodeGenericHidInput(sequence, packet));
   }
 
@@ -706,6 +902,21 @@ class FakeFirmwareTransport implements HidTransport {
       }
       case PacketKind.StatusQuery:
         this.requireSession(packet.sessionId);
+        if (this.rightSyncingStatusResponses > 0) {
+          this.rightSyncingStatusResponses -= 1;
+          return {
+            kind: PacketKind.StatusResponse,
+            sessionId: packet.sessionId,
+            status: SessionStatus.Active,
+            leaseRemainingMillis: this.leaseMillis,
+            centralGeneration: this.centralGeneration as
+              | SceneGeneration
+              | undefined,
+            rightGeneration: undefined,
+            rightStatus: RightHalfStatus.Syncing,
+            interactionEpoch: this.interactionEpoch,
+          };
+        }
         return {
           kind: PacketKind.StatusResponse,
           sessionId: packet.sessionId,
@@ -755,6 +966,7 @@ class FakeFirmwareTransport implements HidTransport {
 }
 
 class FakeScheduler implements SurfaceScheduler {
+  readonly waits: number[] = [];
   private time = 0;
   private nextId = 1;
   private timers = new Map<
@@ -776,6 +988,11 @@ class FakeScheduler implements SurfaceScheduler {
     this.timers.delete(handle as number);
   }
 
+  async wait(delayMillis: number): Promise<void> {
+    this.waits.push(delayMillis);
+    this.time += delayMillis;
+  }
+
   advanceToNext(): void {
     const next = [...this.timers.entries()].sort(
       (left, right) => left[1].at - right[1].at,
@@ -784,6 +1001,25 @@ class FakeScheduler implements SurfaceScheduler {
     this.timers.delete(next[0]);
     this.time = next[1].at;
     next[1].callback();
+  }
+}
+
+class BlockingWaitScheduler extends FakeScheduler {
+  private readonly started = deferred<void>();
+  private readonly released = deferred<void>();
+
+  waitStarted(): Promise<void> {
+    return this.started.promise;
+  }
+
+  releaseWait(): void {
+    this.released.resolve();
+  }
+
+  override async wait(delayMillis: number): Promise<void> {
+    this.started.resolve();
+    await this.released.promise;
+    await super.wait(delayMillis);
   }
 }
 

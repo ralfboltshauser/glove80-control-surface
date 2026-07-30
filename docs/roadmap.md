@@ -10,7 +10,7 @@ The order is:
 2. complete simulated product vertical slice;
 3. dynamic Codex discovery and capability-honest live status;
 4. the existing six-cell HID path;
-5. generic 80-cell, both-half firmware and momentary interaction;
+5. generic 80-cell, both-half firmware and one-shot interaction;
 6. platform/accessibility hardening and a strict Calendar ship/defer gate; and
 7. signed, clean-machine release validation.
 

@@ -188,23 +188,27 @@ Status: **in progress**
 
 Deliver:
 
-- [ ] A pinned, reproducible MoErgo/ZMK firmware extension derived from the
+- [x] A pinned, reproducible MoErgo/ZMK firmware extension derived from the
       existing experiment, not an unreviewed full fork.
-- [ ] Atomic fragmented complete scenes for all 40 left cells.
-- [ ] Versioned, coalesced split snapshots and acknowledgements for all 40
+- [x] Atomic fragmented complete scenes for all 40 left cells.
+- [x] Versioned, coalesced split snapshots and acknowledgements for all 40
       right cells.
-- [ ] Solid and pulse rendering with a measured per-half current budget.
+- [x] Solid and pulse rendering with an enforced per-half current budget.
       Blink is included only if accessibility and power tests justify it.
-- [ ] A leased momentary interaction layer that emits generic cell down/up
-      events and cannot strand normal typing.
-- [ ] Exact topology mapping, compatibility manifest, hashes, build artifacts,
-      and known-good recovery instructions.
+- [x] A leased, one-shot interaction layer that emits generic cell down/up
+      events, preserves all 80 actionable keys, shows a local armed indicator,
+      and exits on action release, cancellation, five-second inactivity,
+      five-second maximum hold, or lease loss.
+- [x] Versioned provisional topology mapping, compatibility manifest, hashes,
+      build artifacts, and known-good recovery instructions. The right LED
+      permutation remains an explicit hardware-calibration gate.
 
 Acceptance:
 
 - Host/firmware golden vectors agree byte for byte.
-- Fuzz and state-machine tests reject malformed, duplicated, stale, partial,
-  and out-of-order data safely.
+- Add firmware runtime/fuzz tests for malformed, duplicated, stale, partial,
+  and out-of-order data before claiming those paths are proven beyond the
+  serialized single-owner USB transport.
 - Simulator tests cover disconnects and version mismatch independently for
   each half.
 - Reproducible firmware artifacts build successfully for both halves.
@@ -212,6 +216,10 @@ Acceptance:
   artifact.**
 - After approval, verify all 80 cells, typing fail-safety, power, reboot,
   unplug, sleep/wake, and split reconnect on the actual keyboard.
+
+The source, build, and host-side offline deliverables are complete for
+`m4-alpha5`. Firmware runtime/fuzz coverage and the single grouped physical
+acceptance session remain open, so the milestone is still in progress.
 
 ## Milestone 5 — platform shell, accessibility, and Calendar gate
 

@@ -42,7 +42,7 @@ export function App() {
       draftCells.some((cell, index) => cell !== configuredCells[index]));
 
   useEffect(() => {
-    if (interactionEpoch === undefined) {
+    if (interactionEpoch === undefined || state?.mode === "hardware") {
       return;
     }
     const exitPreview = (event: KeyboardEvent) => {
@@ -53,7 +53,7 @@ export function App() {
     };
     window.addEventListener("keydown", exitPreview);
     return () => window.removeEventListener("keydown", exitPreview);
-  }, [dispatch, interactionEpoch]);
+  }, [dispatch, interactionEpoch, state?.mode]);
 
   useEffect(() => {
     if (!state || initialized.current) {
@@ -257,10 +257,11 @@ export function App() {
           }
           onToggleControlLayer={toggleControlLayer}
         />
-        <FeedbackStrip
-          error={error}
-          feedback={state.feedback}
-          taskSource={state.taskSource}
+      <FeedbackStrip
+        error={error}
+        feedback={state.feedback}
+        hardware={state.mode === "hardware"}
+        taskSource={state.taskSource}
           onDismissError={clearError}
         />
         <div className="workspace">
@@ -339,13 +340,16 @@ export function App() {
               ? () => void dispatch({ kind: "burst" })
               : undefined
           }
-          onClose={toggleControlLayer}
-          onInvoke={(cellId) =>
-            void dispatch({
-              kind: "invokeCell",
-              epoch: interactionEpoch,
-              cellId,
-            })
+          onClose={state.mode === "simulation" ? toggleControlLayer : undefined}
+          onInvoke={
+            state.mode === "simulation"
+              ? (cellId) =>
+                  void dispatch({
+                    kind: "invokeCell",
+                    epoch: interactionEpoch,
+                    cellId,
+                  })
+              : undefined
           }
           returnFocusRef={hudReturnFocusRef}
         />
@@ -357,6 +361,7 @@ export function App() {
 interface FeedbackStripProps {
   error?: string;
   feedback?: FeedbackView;
+  hardware: boolean;
   taskSource: TaskSourceView;
   onDismissError: () => void;
 }
@@ -364,6 +369,7 @@ interface FeedbackStripProps {
 function FeedbackStrip({
   error,
   feedback,
+  hardware,
   taskSource,
   onDismissError,
 }: FeedbackStripProps) {
@@ -381,8 +387,10 @@ function FeedbackStrip({
       role={error ? "alert" : "status"}
     >
       <span className="simulation-pill">
-        {taskSource.kind === "codex"
-          ? "Live Codex tasks · simulated keyboard"
+        {hardware
+          ? "Live keyboard · leased USB control"
+          : taskSource.kind === "codex"
+            ? "Live Codex tasks · simulated keyboard"
           : "Simulated data · no hardware reads or writes"}
       </span>
       <span className="feedback-strip__message">

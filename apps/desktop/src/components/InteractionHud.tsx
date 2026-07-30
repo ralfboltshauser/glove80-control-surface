@@ -15,8 +15,8 @@ interface InteractionHudProps {
   feedback?: FeedbackView;
   simulatedSource: boolean;
   onBurst?: () => void;
-  onClose: () => void;
-  onInvoke: (cellId: number) => void;
+  onClose?: () => void;
+  onInvoke?: (cellId: number) => void;
   returnFocusRef: RefObject<HTMLElement | null>;
 }
 
@@ -30,6 +30,9 @@ export function InteractionHud({
   onInvoke,
   returnFocusRef,
 }: InteractionHudProps) {
+  const controlLabel = simulatedSource
+    ? "Control layer preview"
+    : "Control armed";
   const adaptive = board.slots.length > 12;
   const occupied = board.slots.filter((slot) => slot.tile).length;
   const visibleSlots = adaptive
@@ -86,14 +89,14 @@ export function InteractionHud({
       data-density={adaptive ? "adaptive" : "comfortable"}
       role="dialog"
       aria-modal="true"
-      aria-label="Control layer preview"
+      aria-label={controlLabel}
       aria-describedby="hud-action-copy"
       onKeyDown={containFocus}
     >
       <div className="interaction-hud__header">
         <div>
           <span className="hud-live-dot" aria-hidden="true" />
-          <strong>Control layer preview</strong>
+          <strong>{controlLabel}</strong>
           <small>{capacitySummary}</small>
         </div>
         <div>
@@ -106,21 +109,23 @@ export function InteractionHud({
               Inject task burst
             </button>
           )}
-          <button
-            ref={exitButtonRef}
-            className="icon-button"
-            type="button"
-            aria-label="Exit control layer preview"
-            onClick={onClose}
-          >
-            <X size={17} />
-          </button>
+          {onClose && (
+            <button
+              ref={exitButtonRef}
+              className="icon-button"
+              type="button"
+              aria-label={`Exit ${controlLabel.toLowerCase()}`}
+              onClick={onClose}
+            >
+              <X size={17} />
+            </button>
+          )}
         </div>
       </div>
       <p className="interaction-hud__action-copy" id="hud-action-copy">
         {simulatedSource
           ? "Select an occupied slot to simulate its open command. This preview does not launch Codex or write to a keyboard."
-          : "Select an occupied slot to open that task in Codex. Keyboard output remains simulated until the HID milestone."}
+          : "Control is armed for one action. Press and release one labeled keyboard key, or press Magic+1 again to cancel; normal typing then resumes."}
       </p>
       <div
         className="interaction-hud__feedback"
@@ -139,10 +144,10 @@ export function InteractionHud({
           <button
             key={slot.cellId}
             type="button"
-            disabled={!slot.tile?.action.enabled}
+            disabled={!slot.tile?.action.enabled || !onInvoke}
             aria-label={slotActionLabel(slot, simulatedSource)}
             title={slotActionLabel(slot, simulatedSource)}
-            onClick={() => onInvoke(slot.cellId)}
+            onClick={() => onInvoke?.(slot.cellId)}
           >
             <span>{slot.slot + 1}</span>
             <div>

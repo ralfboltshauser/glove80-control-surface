@@ -1,0 +1,438 @@
+From 665450ec07d06fb6e82f2d317d694618d7a53ed5 Mon Sep 17 00:00:00 2001
+From: Ralf Boltshauser <ralf@boltshauser.com>
+Date: Thu, 30 Jul 2026 18:12:02 +0200
+Subject: [PATCH] fix: harden leased surface lifecycle
+
+---
+ .../zmk,behavior-control-surface-toggle.yaml  |  5 +
+ app/include/zmk/control_surface.h             |  1 +
+ app/src/behaviors/behavior_control_surface.c  | 32 +++++++
+ app/src/control_surface.c                     | 56 ++++++++++-
+ app/src/rgb_underglow.c                       |  6 ++
+ app/src/split/bluetooth/central.c             | 94 ++++++++++++++-----
+ 6 files changed, 167 insertions(+), 27 deletions(-)
+ create mode 100644 app/dts/bindings/behaviors/zmk,behavior-control-surface-toggle.yaml
+
+diff --git a/app/dts/bindings/behaviors/zmk,behavior-control-surface-toggle.yaml b/app/dts/bindings/behaviors/zmk,behavior-control-surface-toggle.yaml
+new file mode 100644
+index 00000000..55c590bc
+--- /dev/null
++++ b/app/dts/bindings/behaviors/zmk,behavior-control-surface-toggle.yaml
+@@ -0,0 +1,5 @@
++description: Toggle the leased control-surface layer for a live session
++
++compatible: "zmk,behavior-control-surface-toggle"
++
++include: zero_param.yaml
+diff --git a/app/include/zmk/control_surface.h b/app/include/zmk/control_surface.h
+index d762bbb8..9e9d2587 100644
+--- a/app/include/zmk/control_surface.h
++++ b/app/include/zmk/control_surface.h
+@@ -42,4 +42,5 @@ bool zmk_control_surface_local_is_active(void);
+ bool zmk_control_surface_session_is_live(void);
+ int zmk_control_surface_interaction_enter(void);
+ int zmk_control_surface_interaction_exit(void);
++int zmk_control_surface_interaction_toggle(void);
+ int zmk_control_surface_cell_event(uint8_t cell_id, bool pressed);
+diff --git a/app/src/behaviors/behavior_control_surface.c b/app/src/behaviors/behavior_control_surface.c
+index a9c88540..9c73caed 100644
+--- a/app/src/behaviors/behavior_control_surface.c
++++ b/app/src/behaviors/behavior_control_surface.c
+@@ -16,8 +16,10 @@
+ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
+ 
+ #define TRIGGER_COMPAT zmk_behavior_control_surface_trigger
++#define TOGGLE_COMPAT zmk_behavior_control_surface_toggle
+ #define KEY_COMPAT zmk_behavior_control_surface_key
+ 
++#if DT_HAS_COMPAT_STATUS_OKAY(TRIGGER_COMPAT)
+ struct surface_trigger_config {
+     const char *fallback_behavior_dev;
+ };
+@@ -91,6 +93,36 @@ static const struct behavior_driver_api trigger_driver_api = {
+ #define DT_DRV_COMPAT TRIGGER_COMPAT
+ DT_INST_FOREACH_STATUS_OKAY(TRIGGER_INST)
+ #undef DT_DRV_COMPAT
++#endif
++
++static int toggle_pressed(struct zmk_behavior_binding *binding,
++                          struct zmk_behavior_binding_event event) {
++    ARG_UNUSED(binding);
++    ARG_UNUSED(event);
++    int err = zmk_control_surface_interaction_toggle();
++    return err == -EACCES ? ZMK_BEHAVIOR_OPAQUE : err;
++}
++
++static int toggle_released(struct zmk_behavior_binding *binding,
++                           struct zmk_behavior_binding_event event) {
++    ARG_UNUSED(binding);
++    ARG_UNUSED(event);
++    return ZMK_BEHAVIOR_OPAQUE;
++}
++
++static const struct behavior_driver_api toggle_driver_api = {
++    .binding_pressed = toggle_pressed,
++    .binding_released = toggle_released,
++};
++
++#define TOGGLE_INST(n)                                                     \
++    BEHAVIOR_DT_INST_DEFINE(n, NULL, NULL, NULL, NULL, POST_KERNEL,         \
++                            CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,            \
++                            &toggle_driver_api);
++
++#define DT_DRV_COMPAT TOGGLE_COMPAT
++DT_INST_FOREACH_STATUS_OKAY(TOGGLE_INST)
++#undef DT_DRV_COMPAT
+ 
+ static int surface_key_pressed(struct zmk_behavior_binding *binding,
+                                struct zmk_behavior_binding_event event) {
+diff --git a/app/src/control_surface.c b/app/src/control_surface.c
+index 06adbb31..8b9fcb92 100644
+--- a/app/src/control_surface.c
++++ b/app/src/control_surface.c
+@@ -43,7 +43,7 @@ __weak int zmk_split_surface_clear(uint32_t session_id, uint32_t generation,
+ #define SURFACE_MAX_PACKET_BYTES ZMK_CONTROL_SURFACE_REPORT_BODY_BYTES
+ #define SURFACE_MAX_FRAGMENT_CELLS 6
+ #define SURFACE_MAX_FRAGMENTS 14
+-#define SURFACE_FIRMWARE_BUILD_ID "g80m4a02"
++#define SURFACE_FIRMWARE_BUILD_ID "g80m4a03"
+ #define SURFACE_TOPOLOGY_ID "glove80-rgb-80-v1"
+ #define SURFACE_MAX_BRIGHTNESS 96
+ 
+@@ -379,11 +379,14 @@ bool zmk_control_surface_session_is_live(void) {
+ }
+ 
+ int zmk_control_surface_interaction_enter(void) {
+-    if (!zmk_control_surface_session_is_live() ||
++    k_mutex_lock(&surface_state_mutex, K_FOREVER);
++    if (atomic_get(&interaction_session_id) == 0 || !session_live() ||
+         atomic_get(&interaction_mode) == 2) {
++        k_mutex_unlock(&surface_state_mutex);
+         return -EACCES;
+     }
+     if (!atomic_cas(&interaction_mode, 0, 1)) {
++        k_mutex_unlock(&surface_state_mutex);
+         return -EBUSY;
+     }
+     atomic_set(&interaction_trigger_held, 1);
+@@ -392,16 +395,19 @@ int zmk_control_surface_interaction_enter(void) {
+     if (err < 0) {
+         atomic_set(&interaction_mode, 0);
+         atomic_set(&interaction_trigger_held, 0);
++        k_mutex_unlock(&surface_state_mutex);
+         return err;
+     }
+     err = emit_interaction_mode_event(SURFACE_INTERACTION_ENTERED);
+     if (err < 0) {
+         fail_interaction_event_transport();
+     }
++    k_mutex_unlock(&surface_state_mutex);
+     return 0;
+ }
+ 
+ int zmk_control_surface_interaction_exit(void) {
++    k_mutex_lock(&surface_state_mutex, K_FOREVER);
+     atomic_set(&interaction_trigger_held, 0);
+     int mode = atomic_get(&interaction_mode);
+     if (mode == 1) {
+@@ -411,27 +417,68 @@ int zmk_control_surface_interaction_exit(void) {
+     for (uint8_t cell = 0; cell < ZMK_CONTROL_SURFACE_CELL_COUNT; cell++) {
+         atomic_clear_bit(interaction_pressed_cells, cell);
+     }
+-    return zmk_keymap_layer_deactivate(ZMK_KEYMAP_LAYERS_LEN - 1);
++    int err = zmk_keymap_layer_deactivate(ZMK_KEYMAP_LAYERS_LEN - 1);
++    k_mutex_unlock(&surface_state_mutex);
++    return err;
++}
++
++int zmk_control_surface_interaction_toggle(void) {
++    k_mutex_lock(&surface_state_mutex, K_FOREVER);
++    if (atomic_get(&interaction_mode) == 1) {
++        emit_interaction_mode_event(SURFACE_INTERACTION_EXITED);
++        atomic_set(&interaction_mode, 0);
++        for (uint8_t cell = 0; cell < ZMK_CONTROL_SURFACE_CELL_COUNT; cell++) {
++            atomic_clear_bit(interaction_pressed_cells, cell);
++        }
++        int err = zmk_keymap_layer_deactivate(ZMK_KEYMAP_LAYERS_LEN - 1);
++        k_mutex_unlock(&surface_state_mutex);
++        return err;
++    }
++    if (atomic_get(&interaction_session_id) == 0 || !session_live() ||
++        atomic_get(&interaction_mode) != 0) {
++        k_mutex_unlock(&surface_state_mutex);
++        return -EACCES;
++    }
++    atomic_set(&interaction_trigger_held, 0);
++    atomic_set(&interaction_mode, 1);
++    next_nonzero_atomic(&interaction_epoch);
++    int err = zmk_keymap_layer_activate(ZMK_KEYMAP_LAYERS_LEN - 1);
++    if (err < 0) {
++        atomic_set(&interaction_mode, 0);
++        k_mutex_unlock(&surface_state_mutex);
++        return err;
++    }
++    err = emit_interaction_mode_event(SURFACE_INTERACTION_ENTERED);
++    if (err < 0) {
++        fail_interaction_event_transport();
++    }
++    k_mutex_unlock(&surface_state_mutex);
++    return err;
+ }
+ 
+ int zmk_control_surface_cell_event(uint8_t cell_id, bool pressed) {
+     if (cell_id >= ZMK_CONTROL_SURFACE_CELL_COUNT) {
+         return -EINVAL;
+     }
++    k_mutex_lock(&surface_state_mutex, K_FOREVER);
+     if (pressed) {
+         if (atomic_get(&interaction_mode) != 1 ||
+-            !zmk_control_surface_session_is_live()) {
++            atomic_get(&interaction_session_id) == 0 || !session_live()) {
++            k_mutex_unlock(&surface_state_mutex);
+             return 0;
+         }
+         if (atomic_test_and_set_bit(interaction_pressed_cells, cell_id)) {
++            k_mutex_unlock(&surface_state_mutex);
+             return 0;
+         }
+         if (emit_cell_event(cell_id, true) < 0) {
+             fail_interaction_event_transport();
+         }
++        k_mutex_unlock(&surface_state_mutex);
+         return 0;
+     }
+     if (!atomic_test_and_clear_bit(interaction_pressed_cells, cell_id)) {
++        k_mutex_unlock(&surface_state_mutex);
+         return 0;
+     }
+     if (atomic_get(&interaction_mode) == 1) {
+@@ -439,6 +486,7 @@ int zmk_control_surface_cell_event(uint8_t cell_id, bool pressed) {
+             fail_interaction_event_transport();
+         }
+     }
++    k_mutex_unlock(&surface_state_mutex);
+     return 0;
+ }
+ 
+diff --git a/app/src/rgb_underglow.c b/app/src/rgb_underglow.c
+index 21846158..c8b1ae9e 100644
+--- a/app/src/rgb_underglow.c
++++ b/app/src/rgb_underglow.c
+@@ -810,6 +810,12 @@ int zmk_rgb_underglow_control_surface_apply(
+     }
+ #if IS_ENABLED(CONFIG_ZMK_BATTERY_REPORTING)
+     if (!zmk_usb_is_powered() && zmk_battery_state_of_charge() < 20) {
++        k_spinlock_key_t key = k_spin_lock(&control_surface_lock);
++        control_surface_active = false;
++        memset(control_surface_cells, 0xff, sizeof(control_surface_cells));
++        k_spin_unlock(&control_surface_lock, key);
++        zmk_led_write_pixels();
++        zmk_rgb_set_ext_power();
+         return -EAGAIN;
+     }
+ #endif
+diff --git a/app/src/split/bluetooth/central.c b/app/src/split/bluetooth/central.c
+index aeaa7073..5f553900 100644
+--- a/app/src/split/bluetooth/central.c
++++ b/app/src/split/bluetooth/central.c
+@@ -1123,6 +1123,8 @@ struct surface_tx_context {
+ };
+ K_MEM_SLAB_DEFINE(surface_tx_slab, sizeof(struct surface_tx_context), 4, 4);
+ static bool surface_has_latest;
++static bool surface_latest_is_clear;
++static bool surface_inflight_is_clear;
+ static bool surface_sending;
+ static bool surface_tx_pending;
+ static bool surface_waiting_ack;
+@@ -1133,12 +1135,29 @@ static uint8_t surface_retry_count;
+ static uint32_t surface_tx_epoch;
+ static int64_t surface_latest_expires_at;
+ static int64_t surface_inflight_expires_at;
++static int64_t surface_inflight_send_by;
+ static struct bt_conn *surface_transport_conn;
+ static uint16_t surface_transport_handle;
+ K_MUTEX_DEFINE(surface_mutex);
+ 
+ #define SURFACE_SPLIT_TRANSFER_BUDGET_MS 1000
+ 
++static void surface_requeue_inflight_locked(void) {
++    if (surface_has_latest) {
++        return;
++    }
++    surface_latest = surface_inflight;
++    surface_latest_expires_at = surface_inflight_expires_at;
++    surface_latest_is_clear = surface_inflight_is_clear;
++    surface_has_latest = true;
++}
++
++static bool surface_inflight_retryable_locked(int64_t now) {
++    return surface_inflight_is_clear ||
++           surface_inflight_expires_at - now >
++               SURFACE_SPLIT_TRANSFER_BUDGET_MS;
++}
++
+ static bool surface_transport_ready_locked(void) {
+     return surface_transport_conn != NULL &&
+            surface_transport_handle != 0 &&
+@@ -1172,12 +1191,30 @@ static void surface_write_complete(struct bt_conn *conn, void *user_data) {
+     if (!surface_transport_ready_locked() ||
+         surface_transport_conn != conn) {
+         surface_sending = false;
+-        if (!surface_has_latest) {
+-            surface_latest = surface_inflight;
+-            surface_latest_expires_at = surface_inflight_expires_at;
+-            surface_has_latest = true;
++        surface_requeue_inflight_locked();
++        k_mutex_unlock(&surface_mutex);
++        return;
++    }
++
++    if (!surface_inflight_is_clear &&
++        k_uptime_get() >= surface_inflight_send_by) {
++        surface_sending = false;
++        surface_early_ack_valid = false;
++        bool retry =
++            surface_retry_count < 2 &&
++            surface_inflight_retryable_locked(k_uptime_get());
++        if (retry) {
++            surface_requeue_inflight_locked();
++            surface_retry_count++;
+         }
++        bool has_next = surface_has_latest;
+         k_mutex_unlock(&surface_mutex);
++        if (has_next) {
++            k_work_submit_to_queue(&split_central_split_run_q,
++                                   &surface_send_work);
++        } else {
++            zmk_control_surface_split_disconnected();
++        }
+         return;
+     }
+ 
+@@ -1232,7 +1269,8 @@ static void surface_send_work_handler(struct k_work *work) {
+             return;
+         }
+         int64_t now = k_uptime_get();
+-        if (surface_latest_expires_at - now <=
++        if (!surface_latest_is_clear &&
++            surface_latest_expires_at - now <=
+             SURFACE_SPLIT_TRANSFER_BUDGET_MS) {
+             surface_has_latest = false;
+             k_mutex_unlock(&surface_mutex);
+@@ -1240,16 +1278,25 @@ static void surface_send_work_handler(struct k_work *work) {
+         }
+         surface_inflight = surface_latest;
+         surface_inflight_expires_at = surface_latest_expires_at;
++        surface_inflight_is_clear = surface_latest_is_clear;
+         surface_has_latest = false;
+-        uint32_t remaining =
+-            (uint32_t)MIN(surface_inflight_expires_at - now,
+-                          (int64_t)ZMK_CONTROL_SURFACE_MAX_LEASE_MS);
++        uint32_t remaining;
++        if (surface_inflight_is_clear) {
++            remaining = 2000U;
++            surface_inflight_expires_at = now + remaining;
++        } else {
++            remaining =
++                (uint32_t)MIN(surface_inflight_expires_at - now,
++                              (int64_t)ZMK_CONTROL_SURFACE_MAX_LEASE_MS);
++        }
+         surface_inflight.lease_ms =
+             remaining - SURFACE_SPLIT_TRANSFER_BUDGET_MS;
+         surface_inflight.crc32 = 0;
+         surface_inflight.crc32 =
+             crc32_ieee((const uint8_t *)&surface_inflight,
+                        sizeof(surface_inflight));
++        surface_inflight_send_by =
++            now + SURFACE_SPLIT_TRANSFER_BUDGET_MS;
+         surface_tx_epoch++;
+         if (surface_tx_epoch == 0) {
+             surface_tx_epoch = 1;
+@@ -1316,15 +1363,14 @@ static void surface_send_work_handler(struct k_work *work) {
+         surface_early_ack_valid = false;
+         bool retry =
+             surface_retry_count < 2 &&
+-            surface_inflight_expires_at > k_uptime_get();
++            surface_inflight_retryable_locked(k_uptime_get());
+         if (retry && !surface_has_latest) {
+-            surface_latest = surface_inflight;
+-            surface_latest_expires_at = surface_inflight_expires_at;
+-            surface_has_latest = true;
++            surface_requeue_inflight_locked();
+             surface_retry_count++;
+         }
++        bool has_next = surface_has_latest;
+         k_mutex_unlock(&surface_mutex);
+-        if (retry) {
++        if (has_next) {
+             k_work_reschedule_for_queue(&split_central_split_run_q,
+                                         &surface_retry_work, K_MSEC(5));
+         } else {
+@@ -1359,9 +1405,7 @@ static void surface_transport_connected(struct bt_conn *conn,
+ static void surface_transport_disconnected(void) {
+     k_mutex_lock(&surface_mutex, K_FOREVER);
+     if ((surface_sending || surface_waiting_ack) && !surface_has_latest) {
+-        surface_latest = surface_inflight;
+-        surface_latest_expires_at = surface_inflight_expires_at;
+-        surface_has_latest = true;
++        surface_requeue_inflight_locked();
+     }
+     surface_sending = false;
+     surface_tx_pending = false;
+@@ -1431,11 +1475,9 @@ static void surface_ack_timeout_handler(struct k_work *work) {
+         surface_waiting_ack = false;
+         int64_t now = k_uptime_get();
+         if (!surface_has_latest &&
+-            surface_inflight_expires_at > now &&
++            surface_inflight_retryable_locked(now) &&
+             surface_retry_count < 2) {
+-            surface_latest = surface_inflight;
+-            surface_latest_expires_at = surface_inflight_expires_at;
+-            surface_has_latest = true;
++            surface_requeue_inflight_locked();
+             surface_retry_count++;
+             retry = true;
+         } else if (surface_has_latest) {
+@@ -1459,8 +1501,8 @@ static void surface_retry_handler(struct k_work *work) {
+     surface_kick();
+ }
+ 
+-int zmk_split_surface_submit(
+-    const struct zmk_split_surface_scene *scene) {
++static int surface_submit(const struct zmk_split_surface_scene *scene,
++                          bool is_clear) {
+     if (!scene) {
+         return -EINVAL;
+     }
+@@ -1468,6 +1510,7 @@ int zmk_split_surface_submit(
+     k_mutex_lock(&surface_mutex, K_FOREVER);
+     surface_latest = *scene;
+     surface_latest_expires_at = k_uptime_get() + scene->lease_ms;
++    surface_latest_is_clear = is_clear;
+     surface_has_latest = true;
+     surface_retry_count = 0;
+     if (surface_waiting_ack) {
+@@ -1483,6 +1526,11 @@ int zmk_split_surface_submit(
+     return ready ? 0 : -EAGAIN;
+ }
+ 
++int zmk_split_surface_submit(
++    const struct zmk_split_surface_scene *scene) {
++    return surface_submit(scene, false);
++}
++
+ int zmk_split_surface_clear(uint32_t session_id, uint32_t generation,
+                             uint32_t lease_ms) {
+     struct zmk_split_surface_scene scene = {
+@@ -1503,7 +1551,7 @@ int zmk_split_surface_clear(uint32_t session_id, uint32_t generation,
+     }
+     scene.crc32 = 0;
+     scene.crc32 = crc32_ieee((const uint8_t *)&scene, sizeof(scene));
+-    return zmk_split_surface_submit(&scene);
++    return surface_submit(&scene, true);
+ }
+ #endif
+ 
+-- 
+2.48.1
+

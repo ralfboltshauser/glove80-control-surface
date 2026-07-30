@@ -22,7 +22,7 @@ The firmware extension exposes a capability-described **control surface**:
 - solid and pulse; blink remains conditional on later accessibility and power
   evidence;
 - bounded brightness and power behavior; and
-- a momentary control layer gated by a live host session.
+- a one-shot control layer gated by a live host lease.
 
 ### Desktop application
 
@@ -87,9 +87,10 @@ documented keymap addition. Arbitrary keymap source rewriting is not assumed.
 
 ## Transport
 
-The first transport is a vendor-defined HID collection over USB. Output and
-feature reports have been proven for six cells; the required input report is
-not yet proven.
+The first transport is a vendor-defined HID collection over USB. Alpha1
+feature reports and leased output across both 40-cell halves were directly
+observed. Alpha5 input reports compile into the candidate but remain part of
+the grouped physical gate.
 
 Bluetooth HID support is secondary. Report-descriptor caching, battery impact,
 and live output-write behavior must be tested independently.

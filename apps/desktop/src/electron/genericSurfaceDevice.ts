@@ -39,6 +39,8 @@ import type {
 const GLOVE80_VENDOR_ID = 0x16c0;
 const GLOVE80_LEFT_PRODUCT_ID = 0x27db;
 const EXCHANGE_TIMEOUT_MILLIS = 1_500;
+const RIGHT_ACK_WAIT_MILLIS = 2_000;
+const RIGHT_ACK_POLL_MILLIS = 100;
 const DEFAULT_LEASE_MILLIS = 10_000;
 const MIN_RECONNECT_MILLIS = 250;
 const MAX_RECONNECT_MILLIS = 8_000;
@@ -80,6 +82,7 @@ export interface SurfaceScheduler {
   now(): number;
   setTimeout(callback: () => void, delayMillis: number): unknown;
   clearTimeout(handle: unknown): void;
+  wait(delayMillis: number): Promise<void>;
 }
 
 const systemScheduler: SurfaceScheduler = {
@@ -87,6 +90,8 @@ const systemScheduler: SurfaceScheduler = {
   setTimeout: (callback, delayMillis) => setTimeout(callback, delayMillis),
   clearTimeout: (handle) =>
     clearTimeout(handle as ReturnType<typeof setTimeout>),
+  wait: (delayMillis) =>
+    new Promise((resolve) => setTimeout(resolve, delayMillis)),
 };
 
 /**
@@ -113,6 +118,7 @@ export class GenericSurfaceDevice {
   private lifecycleEpoch = 0;
   private interactionEpoch?: number;
   private interactionSequence?: number;
+  private interactionResetRequired = false;
   private readonly interactionPressed = new Set<number>();
   private snapshotValue: SurfaceDeviceSnapshot = {
     connection: "disabled",
@@ -265,20 +271,19 @@ export class GenericSurfaceDevice {
       });
       return;
     }
-    if (this.paused || !this.desired) {
+    if (this.paused) {
       try {
         await this.closeSession();
         this.requireLifecycle(epoch, false);
         this.applied = undefined;
         this.leaseExpiresAtMillis = undefined;
         this.update({
-          connection: this.paused ? "paused" : "connected",
+          connection: "paused",
           desiredGeneration: this.desired?.generation,
           capabilities: this.capabilitiesValue,
           descriptor: this.descriptor,
-          detail: this.paused
-            ? "The close command was acknowledged; each half also retains its independent expiry fail-safe."
-            : "No scene is assigned; the close command was acknowledged.",
+          detail:
+            "The close command was acknowledged; each half also retains its independent expiry fail-safe.",
         });
       } catch (error) {
         if (!(error instanceof LifecycleCancelledError)) {
@@ -291,13 +296,31 @@ export class GenericSurfaceDevice {
     try {
       if (!this.link) await this.connect(epoch);
       this.requireLifecycle(epoch);
+      if (this.interactionResetRequired && this.sessionOpen) {
+        await this.closeSession();
+        this.requireLifecycle(epoch);
+      }
+      if (!this.desired) {
+        await this.closeSession();
+        this.requireLifecycle(epoch);
+        this.applied = undefined;
+        this.leaseExpiresAtMillis = undefined;
+        this.update({
+          connection: "connected",
+          capabilities: this.capabilitiesValue,
+          descriptor: this.descriptor,
+          detail:
+            "The Glove80 control endpoint is connected; no scene is assigned.",
+        });
+        return;
+      }
       if (!this.sessionOpen) await this.openSession();
       this.requireLifecycle(epoch);
       const desired = this.desired;
       if (this.applied?.generation !== desired.generation) {
         await this.applyCompleteScene(desired, epoch);
       } else {
-        await this.renewSession();
+        await this.renewSession(epoch);
       }
       this.requireLifecycle(epoch);
       this.reconnectDelayMillis = MIN_RECONNECT_MILLIS;
@@ -324,7 +347,11 @@ export class GenericSurfaceDevice {
       descriptor: HidDeviceDescriptor;
       capabilities: DeviceCapabilities;
     }> = [];
-    const candidates = descriptors.filter(isUsbLeftCandidate);
+    const candidates = [...new Map(
+      descriptors
+        .filter(isUsbLeftCandidate)
+        .map((descriptor) => [descriptor.path, descriptor]),
+    ).values()];
     const candidateErrors: string[] = [];
     for (const descriptor of candidates) {
       let probeConnection: HidConnection | undefined;
@@ -417,6 +444,28 @@ export class GenericSurfaceDevice {
         resumed =
           status.kind === PacketKind.StatusResponse &&
           status.status === SessionStatus.Active;
+        if (
+          resumed &&
+          status.kind === PacketKind.StatusResponse &&
+          (status.interactionEpoch !== undefined ||
+            this.interactionResetRequired)
+        ) {
+          const closed = await link.exchange(
+            this.nextPacketSequence(),
+            {
+              kind: PacketKind.CloseSession,
+              sessionId: candidateSession,
+            },
+            PacketKind.CommandResult,
+          );
+          requireCommandResult(
+            closed,
+            CommandKind.CloseSession,
+            CommandResultCode.Closed,
+          );
+          resumed = false;
+          this.interactionResetRequired = false;
+        }
       }
       this.link = link;
       this.session = candidateSession;
@@ -451,6 +500,8 @@ export class GenericSurfaceDevice {
       CommandResultCode.Accepted,
     );
     this.sessionOpen = true;
+    // A newly accepted firmware session cannot retain the old interaction.
+    this.interactionResetRequired = false;
   }
 
   private async applyCompleteScene(
@@ -510,9 +561,11 @@ export class GenericSurfaceDevice {
     ) {
       throw new Error("Keyboard rejected or contradicted the atomic scene commit.");
     }
-    const status = await this.readStatus(desired.generation);
+    const status = await this.readStatusAwaitingRight(
+      desired.generation,
+      epoch,
+    );
     const disposition =
-      result.result === CommandResultCode.Applied &&
       status.rightStatus === RightHalfStatus.Applied &&
       status.rightGeneration === desired.generation
         ? "applied"
@@ -539,7 +592,7 @@ export class GenericSurfaceDevice {
     });
   }
 
-  private async renewSession(): Promise<void> {
+  private async renewSession(epoch: number): Promise<void> {
     const response = await this.exchange(
       {
         kind: PacketKind.RenewSession,
@@ -553,7 +606,10 @@ export class GenericSurfaceDevice {
       CommandKind.RenewSession,
       CommandResultCode.Accepted,
     );
-    const status = await this.readStatus(this.applied!.generation);
+    const status = await this.readStatusAwaitingRight(
+      this.applied!.generation,
+      epoch,
+    );
     this.applied = {
       generation: this.applied!.generation,
       leftGeneration: status.centralGeneration,
@@ -608,6 +664,28 @@ export class GenericSurfaceDevice {
     return response;
   }
 
+  private async readStatusAwaitingRight(
+    generation: SceneGeneration,
+    epoch: number,
+  ): Promise<Extract<Packet, { kind: PacketKind.StatusResponse }>> {
+    this.requireLifecycle(epoch);
+    let status = await this.readStatus(generation);
+    const attempts = Math.ceil(
+      RIGHT_ACK_WAIT_MILLIS / RIGHT_ACK_POLL_MILLIS,
+    );
+    for (
+      let attempt = 0;
+      status.rightStatus === RightHalfStatus.Syncing &&
+      attempt < attempts;
+      attempt += 1
+    ) {
+      await this.scheduler.wait(RIGHT_ACK_POLL_MILLIS);
+      this.requireLifecycle(epoch);
+      status = await this.readStatus(generation);
+    }
+    return status;
+  }
+
   private async closeSession(): Promise<void> {
     if (!this.link || !this.session || !this.sessionOpen) return;
     const response = await this.exchange(
@@ -625,6 +703,8 @@ export class GenericSurfaceDevice {
     this.sessionOpen = false;
     this.applied = undefined;
     this.leaseExpiresAtMillis = undefined;
+    this.interactionResetRequired = false;
+    this.resetInteraction();
   }
 
   private exchange(
@@ -653,7 +733,7 @@ export class GenericSurfaceDevice {
     await this.closeLink(true);
     this.applied = undefined;
     this.leaseExpiresAtMillis = undefined;
-    if (!this.enabled || this.paused || !this.desired) return;
+    if (!this.enabled || this.paused) return;
     const delay = this.reconnectDelayMillis;
     this.reconnectDelayMillis = Math.min(
       MAX_RECONNECT_MILLIS,
@@ -661,7 +741,7 @@ export class GenericSurfaceDevice {
     );
     this.update({
       connection: "reconnecting",
-      desiredGeneration: this.desired.generation,
+      desiredGeneration: this.desired?.generation,
       capabilities: this.capabilitiesValue,
       descriptor: this.descriptor,
       detail: `${errorMessage(error)} Retrying in ${delay} ms; firmware lease expiry remains the fail-safe.`,
@@ -802,15 +882,34 @@ export class GenericSurfaceDevice {
         this.resetInteraction();
         return;
       case "sceneExpired":
-        this.invalidateInteraction(expectedSession);
+        // The firmware has already destroyed the expired session. Fail any
+        // host interaction closed without racing a redundant CloseSession
+        // against the replacement session.
+        this.invalidateInteraction(expectedSession, false);
+        this.sessionOpen = false;
+        this.applied = undefined;
+        this.leaseExpiresAtMillis = undefined;
+        this.cancelTimer();
+        this.update({
+          connection: "connected",
+          desiredGeneration: this.desired?.generation,
+          capabilities: this.capabilitiesValue,
+          descriptor: this.descriptor,
+          detail:
+            "The firmware lease expired and cleared the temporary scene; restoring desired state.",
+        });
         this.publishEvent(event);
+        void this.scheduleDrain();
         return;
       default:
         this.publishEvent(event);
     }
   }
 
-  private invalidateInteraction(session: SessionId): void {
+  private invalidateInteraction(
+    session: SessionId,
+    requireSessionReset = true,
+  ): void {
     if (
       this.interactionEpoch !== undefined &&
       this.interactionSequence !== undefined
@@ -821,6 +920,15 @@ export class GenericSurfaceDevice {
         sequence: this.interactionSequence,
         interactionEpoch: this.interactionEpoch,
       });
+    }
+    if (
+      requireSessionReset &&
+      this.enabled &&
+      !this.paused &&
+      this.sessionOpen
+    ) {
+      this.interactionResetRequired = true;
+      void this.scheduleDrain();
     }
     this.resetInteraction();
   }

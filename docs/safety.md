@@ -8,7 +8,7 @@ If the desktop application disappears, the USB cable is removed, or a lease
 expires:
 
 - the scene/session expires;
-- the momentary surface layer exits;
+- the one-shot Control layer exits;
 - no new surface presses are intercepted;
 - already-started surface gestures are cancelled, not converted into typing;
 - temporary pixels are cleared;
@@ -16,8 +16,10 @@ expires:
   state rather than restored from a stale snapshot; and
 - no persistent keymap, Bluetooth, or RGB setting is changed.
 
-The exact press/release transition across expiry is a test requirement, not an
-assumption.
+The press/release transition across expiry is covered by source inspection,
+successful compilation, and host state-machine tests. There is not yet a
+firmware runtime harness for the ZMK work-queue path, so the grouped alpha5
+hardware gate must still validate it on the physical keyboard.
 
 A malformed packet is rejected and does not renew the lease. It records an
 error but does not immediately tear down an otherwise valid session; recovery
@@ -28,7 +30,10 @@ still occurs no later than expiry.
 - Fixed allowlist of addressable cells.
 - Maximum channel brightness.
 - Maximum lease; an effect cannot outlive its leased scene.
-- Strict message length, version, flag, and sequence validation.
+- Strict message length, version, flag, and checksum validation, plus
+  idempotent replay of the immediately previous request. Protocol 2 relies on
+  the single host owner to serialize requests; it does not enforce monotonic
+  request sequences or generation freshness in firmware.
 - Atomic scene commit.
 - Independent frame-wide current budgets on both 40-cell halves.
 - Battery-level suppression and existing Glove80 electrical limits.

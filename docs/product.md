@@ -10,10 +10,10 @@ state.
 Glove80 Control Surface adds two optional roles:
 
 - an ambient display that remains glanceable during normal typing; and
-- a momentary interaction surface entered through a deliberate trigger.
+- a one-shot interaction surface armed through a deliberate chord.
 
 These roles are independent. A key can show state without changing its normal
-typing behavior until interaction mode is held.
+typing behavior until interaction mode is active.
 
 ## Minimal nouns
 
@@ -73,10 +73,14 @@ The canonical end-to-end binding and interaction journey is specified in
 
 1. The keyboard works normally.
 2. Ambient bindings may show state without intercepting keys.
-3. The user holds one configured, momentary interaction trigger.
-4. The desktop HUD labels the currently bound controls.
+3. The user presses Magic+1 to arm one interaction; one left indicator pulses.
+4. When the app window is open, its HUD labels the currently bound controls;
+   the keyboard's pulsing indicator remains the always-local armed feedback.
 5. A surface-key press invokes its binding instead of its normal key behavior.
-6. Releasing the trigger restores normal typing and prior lighting.
+6. Releasing that key exits. Magic+1 cancels; five-second inactivity, session
+   close, expiry, or reboot also exits automatically. A five-second hold emits
+   a matching Up before exit.
+7. Exit restores normal typing and prior lighting.
 
 Interaction mode is available only while a live desktop session exists.
 Latching and pages are deliberately excluded from the first version.

@@ -18,15 +18,22 @@ implementation commitments.
    provides reliable right-half snapshots without starving key events?
 6. What per-half current/brightness budget is safe for complete 40-cell frames?
 
-## Before interaction firmware implementation
+## Interaction decisions resolved in the alpha5 candidate
 
-1. What exact ZMK press/release behavior occurs if the session expires while a
-   surface key or trigger is held?
-2. Which exact momentary trigger can be added without breaking the imported
-   user keymap, combos, hold-taps, Studio layer ordering, or existing Magic
-   behavior?
-3. Is the generated highest-priority layer sufficient for all 80 positions,
-   and what documented fallback exists for a user's already-occupied trigger?
+- Interaction entry, exit, key transitions, Close, and expiry share one
+  firmware mutex. Expiry cancels the consumed interaction gesture rather than
+  synthesizing typing.
+- Magic+1 arms one Control action only during a live lease. Releasing the
+  action key exits; Magic+1 cancels; five-second inactivity auto-cancels. A
+  five-second hold emits a synthetic Up before exit. The original Magic tap
+  and hold bindings remain unchanged in the imported layers.
+- The generated highest-priority Control layer covers all 80 positions. The
+  gesture is compatibility-manifest data rather than an unrestricted runtime
+  choice.
+
+These are source- and build-verified decisions, not hardware acceptance.
+Physical Magic behavior, the local indicator mapping, expiry during a press,
+and all 80 positions remain in the grouped alpha5 hardware gate.
 
 ## Before shipping the desktop stack
 

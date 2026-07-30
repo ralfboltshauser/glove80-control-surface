@@ -1,0 +1,105 @@
+{
+  "releaseId": "m4-alpha5",
+  "protocolVersion": 2,
+  "buildId": "g80m4a05",
+  "topologyId": "glove80-rgb-80-v1",
+  "hardwareValidated": false,
+  "source": {
+    "moergoZmkCommit": "2f73a230e2fc7b2bd64a9736181e87bf54338131",
+    "patches": [
+      {
+        "file": "firmware/patches/0001-leased-glove80-control-surface.patch",
+        "sha256": "c67573455e2e5fe4473ef22b937eeddb7a6390e908cd07994d2f5e69c2f33917"
+      },
+      {
+        "file": "firmware/patches/0002-split-ack-notification.patch",
+        "sha256": "c7967f5289708875106de123c700e7912bebf5dabe945ad6074236e546c2f2ae"
+      },
+      {
+        "file": "firmware/patches/0003-harden-leases-and-toggle-control.patch",
+        "sha256": "3b28b3bf4f37ba63de4e28deae20328b0a99e9ce30cd9f14a7e9a09a0a2c13ba"
+      },
+      {
+        "file": "firmware/patches/0004-harden-one-shot-interaction-and-split-deadlines.patch",
+        "sha256": "7730f70be98cabcf7a8a2036a5777da1afa00277a159a140287bfd7376acde82"
+      }
+    ],
+    "sourceDiffSha256": "b766ac24afa52b580a88bd69e292678a965f2161bf9493a30c44af2ad44d9d75",
+    "zephyrCommit": "dacab4875df72109b96cc8977547a0dc04875bcd",
+    "zephyrSdk": "0.16.3"
+  },
+  "layout": {
+    "name": "Ralf Custom Swiss v8",
+    "uuid": "fe5af554-f9e7-4db1-a4dc-e99d817603fd",
+    "sourceKeymapSha256": "732b79ad73a3b93d74c5fc6d3002411a4dfd7e4338149b77922bad7105479410",
+    "layoutJsonSha256": "aa4de7a2e830fa70462cc3a6f1779b97c335de045edf5a7dbdb2ed9c156f91d3",
+    "derivedKeymapSha256": "277993659c82a49eb42835ac26c5cb62601c7cedeee5560106ec76501e13e1bb",
+    "preservedLayers": ["Base", "Lower", "Magic", "Factory"],
+    "generatedLayer": "Control",
+    "interactionGesture": {
+      "kind": "oneShotChord",
+      "positions": [64, 11],
+      "cells": [29, 6],
+      "label": "Magic + 1",
+      "armTimeoutMillis": 5000,
+      "holdTimeoutMillis": 5000,
+      "indicatorCell": 29,
+      "indicatorLedChannel": 39
+    }
+  },
+  "topology": {
+    "sha256": "a29add84e695f9ddabbf47e74393cc403d13c4ae2ad399ef071258fc694c36d3",
+    "cellCount": 80
+  },
+  "surface": {
+    "lh": {
+      "file": "glove80_surface_lh.uf2",
+      "bytes": 486912,
+      "sha256": "b56ffa63c0a538e5106995eef88b3cd4b04ab17538fd478ba8b2dcf5ee40c88b",
+      "uf2Family": "0x9807b007"
+    },
+    "rh": {
+      "file": "glove80_surface_rh.uf2",
+      "bytes": 369664,
+      "sha256": "656a20fefaf23a5811c8d65ea11fb508de7a67746400cf38073cade830770172",
+      "uf2Family": "0x9808b007"
+    }
+  },
+  "recovery": {
+    "meaning": "Clean pinned MoErgo firmware with the exact Ralf Custom Swiss v8 keymap; it preserves the bootloader and settings partition.",
+    "lh": {
+      "file": "glove80_recovery_lh.uf2",
+      "bytes": 461312,
+      "sha256": "0863da85b17f06f17ecfac4fdac3560c0f56becdfaecd85e953fbc9404b53ceb",
+      "uf2Family": "0x9807b007"
+    },
+    "rh": {
+      "file": "glove80_recovery_rh.uf2",
+      "bytes": 363520,
+      "sha256": "cc95d8a91de3e3d9688b1f62fb77dd084ffa57ff0355a36fc0ea4143eb7f682c",
+      "uf2Family": "0x9808b007"
+    }
+  },
+  "flashPartition": {
+    "start": "0x26000",
+    "endExclusive": "0xec000",
+    "preservesStorageAndBootloader": true
+  },
+  "changes": [
+    "Use a BLE notification for right-half acknowledgements.",
+    "Make interaction entry, exit, and cell events atomic with lease expiry.",
+    "Reject ordinary split-fragment submission after 500 ms and controller completion after the one-second relative-lease reserve.",
+    "Keep transparent clear scenes eligible after queue delay.",
+    "Clear a stale local overlay when electrical limits reject a new scene.",
+    "Preserve the original Magic tap and hold behavior; Magic + 1 arms one Control action so all 80 keys remain individually actionable.",
+    "Pulse one low-brightness left indicator while Control is armed, exit after one key release, and auto-cancel after five seconds.",
+    "Latch the first pressed cell so overlapping keys cannot invoke multiple one-shot actions, and synthesize a matching release for a five-second hold."
+  ],
+  "knownUncertainty": {
+    "rightAcknowledgement": "The notification fix compiles against pinned Zephyr and the host polls boundedly, but actual right-half acknowledgement still requires post-flash hardware proof.",
+    "splitTiming": "The submit and controller-completion deadlines are pragmatic bounds, not proof of remote application time; the right applies scenes on its own work queue. Hardware timing remains required.",
+    "interactionIndicator": "Physical cell 29 is the intended Magic key and maps to raw left LED channel 39 in the current topology; physical calibration must still confirm the topology.",
+    "rightLedOrder": "Physical cell 40 rendered on F6 during alpha1 testing; complete right-side order still requires host-side calibration.",
+    "transport": "Runtime control is intentionally USB-only in protocol v2; BLE typing remains stock."
+  }
+}

@@ -62,6 +62,7 @@ export interface ConfigurationDocument {
 export interface DeviceCapabilities {
   protocolVersion: number;
   topologyId: string;
+  firmwareBuildId?: string;
   availableCells: number[];
   supportsInputEvents: boolean;
   supportsRightHalfAcknowledgement: boolean;
@@ -94,6 +95,7 @@ export interface DeviceView {
   appliedScene?: AppliedScene;
   syncStatus: SyncStatus;
   rightHalfConnected: boolean;
+  detail?: string;
 }
 
 export interface BoardSlotView {
@@ -129,7 +131,7 @@ export interface TaskSourceView {
 
 export interface AppViewState {
   revision: number;
-  mode: "simulation";
+  mode: "simulation" | "hardware";
   configuration: ConfigurationDocument;
   device: DeviceView;
   board?: BoardView;

@@ -13,9 +13,9 @@ if it remains understandable without introducing a second scene model.
 
 ### Understand
 
-Color alone is not identity. While the momentary interaction trigger is held,
-the desktop shows a compact keyboard HUD with each bound key's label, source,
-state, and available action.
+Color alone is not identity. While the one-shot Control layer is armed, the
+desktop shows a compact keyboard HUD with each bound key's label, source, state,
+and available action.
 
 ### Act deliberately
 
@@ -91,10 +91,11 @@ do not change meaning under their hands.
 
 Capabilities must represent available RGB cells honestly. The user's
 both-RGB model targets 80 cells across two independently powered 40-cell
-halves. A six-cell USB experiment proves only those six cells; it is a
-regression fixture, not the product boundary. Left-only RGB, other revisions,
-multiple keyboards, and non-RGB/action-only operation need their own
-compatibility rows.
+halves. Alpha1 directly rendered a leased scene on both halves; complete
+channel order and alpha5 interaction remain hardware gates. The original
+six-cell experiment is only a regression fixture, not the product boundary.
+Left-only RGB, other revisions, multiple keyboards, and non-RGB/action-only
+operation need their own compatibility rows.
 
 ## Release bar
 

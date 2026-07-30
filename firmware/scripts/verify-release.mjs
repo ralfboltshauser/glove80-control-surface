@@ -1,16 +1,28 @@
 #!/usr/bin/env node
 
+import { execFile as execFileCallback } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { readFile, realpath } from "node:fs/promises";
+import { basename, resolve } from "node:path";
+import { promisify } from "node:util";
 
 const EXPECTED_KEYMAP =
   "732b79ad73a3b93d74c5fc6d3002411a4dfd7e4338149b77922bad7105479410";
 const EXPECTED_LAYOUT =
   "aa4de7a2e830fa70462cc3a6f1779b97c335de045edf5a7dbdb2ed9c156f91d3";
 const EXPECTED_DERIVED =
-  "a2b75bbdc59cb36636dc5cef4b8a4ab591e61381f30c4774e98851d99df44e45";
-const EXPECTED_BUILD_ID = "g80m4a01";
+  "277993659c82a49eb42835ac26c5cb62601c7cedeee5560106ec76501e13e1bb";
+const EXPECTED_BUILD_ID = "g80m4a05";
+const EXPECTED_RELEASE_ID = "m4-alpha5";
+const EXPECTED_PROTOCOL_VERSION = 2;
+const EXPECTED_TOPOLOGY_ID = "glove80-rgb-80-v1";
+const EXPECTED_ZMK_COMMIT =
+  "2f73a230e2fc7b2bd64a9736181e87bf54338131";
+const EXPECTED_ZEPHYR_COMMIT =
+  "dacab4875df72109b96cc8977547a0dc04875bcd";
+const EXPECTED_ZEPHYR_SDK = "0.16.3";
+const EXPECTED_SOURCE_DIFF =
+  "b766ac24afa52b580a88bd69e292678a965f2161bf9493a30c44af2ad44d9d75";
 const EXPECTED_UF2_FAMILY = {
   lh: 0x9807b007,
   rh: 0x9808b007,
@@ -18,6 +30,13 @@ const EXPECTED_UF2_FAMILY = {
 const CODE_PARTITION_START = 0x26000;
 const CODE_PARTITION_END = 0xec000;
 const EXPECTED_LAYERS = ["Base", "Lower", "Magic", "Factory"];
+const EXPECTED_PATCHES = [
+  "firmware/patches/0001-leased-glove80-control-surface.patch",
+  "firmware/patches/0002-split-ack-notification.patch",
+  "firmware/patches/0003-harden-leases-and-toggle-control.patch",
+  "firmware/patches/0004-harden-one-shot-interaction-and-split-deadlines.patch",
+];
+const execFile = promisify(execFileCallback);
 
 const repositoryRoot = resolve(import.meta.dirname, "../..");
 const [surfaceDirectoryArg, recoveryDirectoryArg] = process.argv.slice(2);
@@ -28,6 +47,14 @@ if (!surfaceDirectoryArg || !recoveryDirectoryArg) {
 }
 const surfaceDirectory = resolve(surfaceDirectoryArg);
 const recoveryDirectory = resolve(recoveryDirectoryArg);
+const zmkSource = process.env.ZMK_SOURCE;
+const zephyrBase = process.env.ZEPHYR_BASE;
+const zephyrSdk = process.env.ZEPHYR_SDK_INSTALL_DIR;
+if (!zmkSource || !zephyrBase || !zephyrSdk) {
+  throw new Error(
+    "ZMK_SOURCE, ZEPHYR_BASE, and ZEPHYR_SDK_INSTALL_DIR are required",
+  );
+}
 
 const keymapPath = resolve(
   repositoryRoot,
@@ -47,12 +74,123 @@ const topology = JSON.parse(
     "utf8",
   ),
 );
+const topologyPath = resolve(
+  repositoryRoot,
+  "firmware/topology/glove80-rgb-80-v1.json",
+);
+const releaseManifest = JSON.parse(
+  await readFile(
+    resolve(repositoryRoot, "firmware/releases/m4-alpha5.json"),
+    "utf8",
+  ),
+);
 
 assertEqual(await sha256(keymapPath), EXPECTED_KEYMAP, "keymap SHA-256");
 assertEqual(await sha256(layoutPath), EXPECTED_LAYOUT, "layout SHA-256");
 assertEqual(await sha256(derivedPath), EXPECTED_DERIVED, "derived keymap SHA-256");
 assertPermutation(topology.zmkPositionToCell, "zmkPositionToCell");
 assertPermutation(topology.cellToLedChannel, "cellToLedChannel");
+assertEqual(topology.topologyId, EXPECTED_TOPOLOGY_ID, "topology ID");
+assertEqual(releaseManifest.releaseId, EXPECTED_RELEASE_ID, "release ID");
+assertEqual(
+  releaseManifest.protocolVersion,
+  EXPECTED_PROTOCOL_VERSION,
+  "protocol version",
+);
+assertEqual(releaseManifest.buildId, EXPECTED_BUILD_ID, "manifest build ID");
+assertEqual(
+  releaseManifest.topologyId,
+  EXPECTED_TOPOLOGY_ID,
+  "manifest topology ID",
+);
+assertEqual(
+  releaseManifest.hardwareValidated,
+  false,
+  "hardware validation flag",
+);
+assertEqual(
+  releaseManifest.source.moergoZmkCommit,
+  EXPECTED_ZMK_COMMIT,
+  "manifest ZMK base",
+);
+assertEqual(
+  releaseManifest.source.zephyrCommit,
+  EXPECTED_ZEPHYR_COMMIT,
+  "manifest Zephyr commit",
+);
+assertEqual(
+  releaseManifest.source.zephyrSdk,
+  EXPECTED_ZEPHYR_SDK,
+  "manifest Zephyr SDK",
+);
+assertEqual(
+  releaseManifest.source.sourceDiffSha256,
+  EXPECTED_SOURCE_DIFF,
+  "manifest source diff",
+);
+assertEqual(
+  releaseManifest.layout.sourceKeymapSha256,
+  EXPECTED_KEYMAP,
+  "manifest source keymap",
+);
+assertEqual(
+  releaseManifest.layout.layoutJsonSha256,
+  EXPECTED_LAYOUT,
+  "manifest layout JSON",
+);
+assertEqual(
+  releaseManifest.layout.derivedKeymapSha256,
+  EXPECTED_DERIVED,
+  "manifest derived keymap",
+);
+assertEqual(
+  JSON.stringify(releaseManifest.layout.preservedLayers),
+  JSON.stringify(EXPECTED_LAYERS),
+  "manifest preserved layers",
+);
+assertEqual(
+  releaseManifest.layout.generatedLayer,
+  "Control",
+  "manifest generated layer",
+);
+assertEqual(
+  JSON.stringify(releaseManifest.layout.interactionGesture),
+  JSON.stringify({
+    kind: "oneShotChord",
+    positions: [64, 11],
+    cells: [29, 6],
+    label: "Magic + 1",
+    armTimeoutMillis: 5000,
+    holdTimeoutMillis: 5000,
+    indicatorCell: 29,
+    indicatorLedChannel: 39,
+  }),
+  "manifest interaction gesture",
+);
+assertEqual(
+  releaseManifest.topology.sha256,
+  await sha256(topologyPath),
+  "manifest topology hash",
+);
+assertEqual(releaseManifest.topology.cellCount, 80, "manifest cell count");
+assertEqual(
+  JSON.stringify(releaseManifest.source.patches.map((patch) => patch.file)),
+  JSON.stringify(EXPECTED_PATCHES),
+  "manifest patch order",
+);
+for (const patch of releaseManifest.source.patches) {
+  assertEqual(
+    await sha256(resolve(repositoryRoot, patch.file)),
+    patch.sha256,
+    `${patch.file} SHA-256`,
+  );
+}
+await verifyPinnedSource(zmkSource, zephyrBase, zephyrSdk);
+await verifyCompiledSourceTrees(
+  surfaceDirectory,
+  recoveryDirectory,
+  zmkSource,
+);
 
 const release = {
   buildId: EXPECTED_BUILD_ID,
@@ -83,6 +221,9 @@ for (const side of ["lh", "rh"]) {
       : "CONFIG_ZMK_SPLIT_BLE_PERIPHERAL_STACK_SIZE=1024",
     `${side} split stack`,
   );
+  if (surfaceConfig.includes("CONFIG_ZMK_KEYMAP_SETTINGS_STORAGE=y")) {
+    throw new Error(`${side} surface unexpectedly enables keymap storage`);
+  }
   assertBoardAndRole(surfaceConfig, side, `${side} surface`);
 
   const dts = await readFile(
@@ -101,9 +242,7 @@ for (const side of ["lh", "rh"]) {
     JSON.stringify([...EXPECTED_LAYERS, "Control"]),
     `${side} surface layer order`,
   );
-  if (dts.includes("combos {")) {
-    throw new Error(`${side} surface keymap unexpectedly contains combos`);
-  }
+  assertSurfaceToggleChord(dts, side);
 
   const surfaceUf2 = resolve(surfaceDirectory, side, "zephyr/zmk.uf2");
   if (side === "lh") {
@@ -130,6 +269,12 @@ for (const side of ["lh", "rh"]) {
     `${side} labelled surface artifact`,
   );
   release.surface[side] = await artifact(labelledSurfaceUf2);
+  assertArtifactManifest(
+    release.surface[side],
+    releaseManifest.surface[side],
+    side,
+    "surface",
+  );
 
   const recoveryConfig = await readFile(
     resolve(recoveryDirectory, side, "zephyr/.config"),
@@ -152,13 +297,9 @@ for (const side of ["lh", "rh"]) {
     `${side} recovery layer order`,
   );
   surfaceLayers.slice(0, 4).forEach((layer, index) => {
-    const expectedBindings = recoveryLayers[index].bindings.replaceAll(
-      "&magic ",
-      "&surface_magic ",
-    );
     assertEqual(
       layer.bindings,
-      expectedBindings,
+      recoveryLayers[index].bindings,
       `${side} preserved ${layer.name} bindings`,
     );
   });
@@ -196,7 +337,29 @@ for (const side of ["lh", "rh"]) {
     `${side} labelled recovery artifact`,
   );
   release.recovery[side] = await artifact(labelledRecoveryUf2);
+  assertArtifactManifest(
+    release.recovery[side],
+    releaseManifest.recovery[side],
+    side,
+    "recovery",
+  );
 }
+
+assertEqual(
+  releaseManifest.flashPartition.start,
+  `0x${CODE_PARTITION_START.toString(16)}`,
+  "manifest flash start",
+);
+assertEqual(
+  releaseManifest.flashPartition.endExclusive,
+  `0x${CODE_PARTITION_END.toString(16)}`,
+  "manifest flash end",
+);
+assertEqual(
+  releaseManifest.flashPartition.preservesStorageAndBootloader,
+  true,
+  "manifest storage/bootloader preservation",
+);
 
 process.stdout.write(`${JSON.stringify(release, null, 2)}\n`);
 
@@ -211,6 +374,115 @@ async function artifact(path) {
 
 async function sha256(path) {
   return createHash("sha256").update(await readFile(path)).digest("hex");
+}
+
+async function verifyPinnedSource(zmkSource, zephyrBase, zephyrSdk) {
+  const [zmkStatus, zmkHead, zmkDiff, zephyrHead, sdkVersion] =
+    await Promise.all([
+      execFile("git", ["-C", zmkSource, "status", "--porcelain"]),
+      execFile("git", ["-C", zmkSource, "rev-parse", "HEAD"]),
+      execFile(
+        "git",
+        [
+          "-C",
+          zmkSource,
+          "diff",
+          "--binary",
+          `${EXPECTED_ZMK_COMMIT}..HEAD`,
+        ],
+        { encoding: "buffer", maxBuffer: 16 * 1024 * 1024 },
+      ),
+      execFile("git", ["-C", zephyrBase, "rev-parse", "HEAD"]),
+      readFile(resolve(zephyrSdk, "sdk_version"), "utf8"),
+    ]);
+  assertEqual(zmkStatus.stdout.trim(), "", "patched ZMK worktree");
+  if (zmkHead.stdout.trim() === EXPECTED_ZMK_COMMIT) {
+    throw new Error("patched ZMK checkout contains no release commits");
+  }
+  assertEqual(
+    createHash("sha256").update(zmkDiff.stdout).digest("hex"),
+    EXPECTED_SOURCE_DIFF,
+    "patched source diff",
+  );
+  assertEqual(
+    zephyrHead.stdout.trim(),
+    EXPECTED_ZEPHYR_COMMIT,
+    "Zephyr checkout",
+  );
+  assertEqual(sdkVersion.trim(), EXPECTED_ZEPHYR_SDK, "Zephyr SDK");
+}
+
+async function verifyCompiledSourceTrees(
+  surfaceDirectory,
+  recoveryDirectory,
+  patchedSource,
+) {
+  const patchedRealpath = await realpath(patchedSource);
+  const surfaceSources = await compiledZmkSources(surfaceDirectory);
+  for (const [side, source] of Object.entries(surfaceSources)) {
+    assertEqual(
+      await realpath(source),
+      patchedRealpath,
+      `${side} surface CMake source`,
+    );
+  }
+
+  const recoverySources = await compiledZmkSources(recoveryDirectory);
+  const uniqueRecoverySources = new Set(
+    await Promise.all(
+      Object.values(recoverySources).map((source) => realpath(source)),
+    ),
+  );
+  assertEqual(
+    uniqueRecoverySources.size,
+    1,
+    "recovery CMake source count",
+  );
+  const recoverySource = [...uniqueRecoverySources][0];
+  const [status, head] = await Promise.all([
+    execFile("git", ["-C", recoverySource, "status", "--porcelain"]),
+    execFile("git", ["-C", recoverySource, "rev-parse", "HEAD"]),
+  ]);
+  assertEqual(status.stdout.trim(), "", "recovery ZMK worktree");
+  assertEqual(
+    head.stdout.trim(),
+    EXPECTED_ZMK_COMMIT,
+    "recovery ZMK base",
+  );
+}
+
+async function compiledZmkSources(buildDirectory) {
+  const result = {};
+  for (const side of ["lh", "rh"]) {
+    const cache = await readFile(
+      resolve(buildDirectory, side, "CMakeCache.txt"),
+      "utf8",
+    );
+    const match = cache.match(/^CMAKE_HOME_DIRECTORY:INTERNAL=(.+)$/m);
+    if (!match) {
+      throw new Error(`${side} build has no CMake source directory`);
+    }
+    result[side] = resolve(match[1], "..");
+  }
+  return result;
+}
+
+function assertArtifactManifest(actual, expected, side, kind) {
+  if (!expected) {
+    throw new Error(`manifest is missing ${kind}.${side}`);
+  }
+  assertEqual(
+    basename(expected.file),
+    `glove80_${kind}_${side}.uf2`,
+    `${kind} ${side} manifest filename`,
+  );
+  assertEqual(actual.bytes, expected.bytes, `${kind} ${side} byte count`);
+  assertEqual(actual.sha256, expected.sha256, `${kind} ${side} SHA-256`);
+  assertEqual(
+    Number.parseInt(expected.uf2Family, 16),
+    EXPECTED_UF2_FAMILY[side],
+    `${kind} ${side} UF2 family`,
+  );
 }
 
 function assertEqual(actual, expected, label) {
@@ -235,6 +507,25 @@ function assertPermutation(candidate, label) {
   ) {
     throw new Error(`${label} must be a permutation of 0 through 79`);
   }
+}
+
+function assertSurfaceToggleChord(dts, side) {
+  const normalized = dts.replace(/\s+/g, " ");
+  assertIncludes(
+    normalized,
+    "surface_toggle_chord {",
+    `${side} surface toggle chord`,
+  );
+  assertIncludes(
+    normalized,
+    "key-positions = < 0x40 0xb >;",
+    `${side} surface toggle positions`,
+  );
+  assertIncludes(
+    normalized,
+    "bindings = < &surface_toggle >;",
+    `${side} surface toggle binding`,
+  );
 }
 
 function assertBoardAndRole(config, side, label) {
@@ -269,6 +560,8 @@ function assertConfigDiff(recoveryConfig, surfaceConfig, side) {
     "CONFIG_GLOVE80_CONTROL_SURFACE",
     "CONFIG_DT_HAS_ZMK_BEHAVIOR_CONTROL_SURFACE_KEY_ENABLED",
     "CONFIG_DT_HAS_ZMK_BEHAVIOR_CONTROL_SURFACE_TRIGGER_ENABLED",
+    "CONFIG_DT_HAS_ZMK_BEHAVIOR_CONTROL_SURFACE_TOGGLE_ENABLED",
+    "CONFIG_DT_HAS_ZMK_COMBOS_ENABLED",
     side === "lh"
       ? "CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_STACK_SIZE"
       : "CONFIG_ZMK_SPLIT_BLE_PERIPHERAL_STACK_SIZE",

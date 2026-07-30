@@ -64,29 +64,34 @@ later accessibility and power evidence.
 If the application disappears or its session expires, the temporary scene
 clears and normal typing remains available.
 
-## Act through the momentary surface
+## Act through the explicit Control surface
 
-To invoke a binding, the user holds the firmware-installed physical
-control-surface trigger:
+To invoke a binding, the user arms the firmware-installed Control layer with
+Magic+1:
 
 ```text
-trigger held:
-    left "1" press → cell event → application → bound Codex action
+Magic+1:
+    arm one action; one left indicator pulses
+    left "1" press/release → cell events → application → bound Codex action
+    return to normal typing
 
-trigger released:
+Magic+1 again, five-second inactivity, five-second maximum hold, session close,
+or lease expiry:
+    cancel Control
     left "1" press → types "1"
 ```
 
-While the trigger is held, a desktop HUD is the leading discoverability design:
-it labels bound keys, current resources, states, and actions. Its effectiveness
-must be user-tested.
+While Control is armed and the app window is open, its HUD labels bound keys,
+current resources, states, and actions. The pulsing keyboard indicator remains
+the local feedback when the window is closed. The HUD's effectiveness must be
+user-tested.
 
 The firmware reports only the cell ID and interaction epoch. The application
 uses the frozen allocation, resource identity, and observed revision for that
 epoch to find the task or event and dispatch its action. Dynamic resources
 cannot move between cells during an interaction.
 
-The keyboard provides immediate local press feedback. The application then
+The keyboard provides a local pulsing armed indicator. The application then
 updates the HUD with accepted, completed, cancelled, or failed action feedback
 without overwriting the resource's semantic LED state. Destructive actions
 require a future explicit confirmation design and are excluded initially.

@@ -11,7 +11,7 @@ interface StatusBarProps {
   state: AppViewState;
 }
 
-const statusCopy = {
+const simulationStatusCopy = {
   idle: "Simulation · no scene configured",
   applied: "Simulation · complete scene applied",
   partial: "Simulation · desired and applied differ",
@@ -19,8 +19,20 @@ const statusCopy = {
   disconnected: "Simulation · keyboard unavailable",
 } as const;
 
+const hardwareStatusCopy = {
+  idle: "Keyboard connected · no scene configured",
+  applied: "Keyboard · both halves synchronized",
+  partial: "Keyboard · waiting for complete synchronization",
+  paused: "Keyboard · surface output paused",
+  disconnected: "Keyboard · USB control unavailable",
+} as const;
+
 export function StatusBar({ state }: StatusBarProps) {
   const { device, board } = state;
+  const statusCopy =
+    state.mode === "hardware"
+      ? hardwareStatusCopy
+      : simulationStatusCopy;
   const StatusIcon =
     device.syncStatus === "paused"
       ? CirclePause

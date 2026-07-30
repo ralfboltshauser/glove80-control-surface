@@ -6,4 +6,5 @@ export {
 export type {
   ConfigurationStore,
   SimulationRuntimeOptions,
+  TaskSourceSnapshot,
 } from "@glove80-control-surface/control-core";

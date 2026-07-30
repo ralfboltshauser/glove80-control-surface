@@ -1,0 +1,192 @@
+From b7d96510a993919dc7dbfaf7c2daf259b25932a1 Mon Sep 17 00:00:00 2001
+From: Ralf Boltshauser <ralf@boltshauser.com>
+Date: Thu, 30 Jul 2026 17:41:14 +0200
+Subject: [PATCH] fix: return split surface acknowledgements by notification
+
+---
+ app/src/control_surface.c         |  2 +-
+ app/src/split/bluetooth/central.c | 16 +++++------
+ app/src/split/bluetooth/service.c | 47 ++++++++++---------------------
+ 3 files changed, 24 insertions(+), 41 deletions(-)
+
+diff --git a/app/src/control_surface.c b/app/src/control_surface.c
+index 81d4361c..06adbb31 100644
+--- a/app/src/control_surface.c
++++ b/app/src/control_surface.c
+@@ -43,7 +43,7 @@ __weak int zmk_split_surface_clear(uint32_t session_id, uint32_t generation,
+ #define SURFACE_MAX_PACKET_BYTES ZMK_CONTROL_SURFACE_REPORT_BODY_BYTES
+ #define SURFACE_MAX_FRAGMENT_CELLS 6
+ #define SURFACE_MAX_FRAGMENTS 14
+-#define SURFACE_FIRMWARE_BUILD_ID "g80m4a01"
++#define SURFACE_FIRMWARE_BUILD_ID "g80m4a02"
+ #define SURFACE_TOPOLOGY_ID "glove80-rgb-80-v1"
+ #define SURFACE_MAX_BRIGHTNESS 96
+ 
+diff --git a/app/src/split/bluetooth/central.c b/app/src/split/bluetooth/central.c
+index c83bc752..aeaa7073 100644
+--- a/app/src/split/bluetooth/central.c
++++ b/app/src/split/bluetooth/central.c
+@@ -68,7 +68,7 @@ struct peripheral_slot {
+     uint16_t run_behavior_handle;
+ #if IS_ENABLED(CONFIG_GLOVE80_CONTROL_SURFACE)
+     uint16_t surface_handle;
+-    bool surface_indications_ready;
++    bool surface_notifications_ready;
+     struct bt_gatt_subscribe_params surface_subscribe_params;
+ #endif
+ #if IS_ENABLED(CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING)
+@@ -236,7 +236,7 @@ int release_peripheral_slot(int index) {
+     slot->run_behavior_handle = 0;
+ #if IS_ENABLED(CONFIG_GLOVE80_CONTROL_SURFACE)
+     slot->surface_handle = 0;
+-    slot->surface_indications_ready = false;
++    slot->surface_notifications_ready = false;
+     slot->surface_subscribe_params.value_handle = 0;
+     surface_transport_disconnected();
+     zmk_control_surface_split_disconnected();
+@@ -418,14 +418,14 @@ static uint8_t split_central_notify_func(struct bt_conn *conn,
+ }
+ 
+ #if IS_ENABLED(CONFIG_GLOVE80_CONTROL_SURFACE)
+-static uint8_t split_surface_indication_func(
++static uint8_t split_surface_notification_func(
+     struct bt_conn *conn, struct bt_gatt_subscribe_params *params,
+     const void *data, uint16_t length) {
+     if (!data) {
+         params->value_handle = 0;
+         struct peripheral_slot *slot = peripheral_slot_for_conn(conn);
+         if (slot) {
+-            slot->surface_indications_ready = false;
++            slot->surface_notifications_ready = false;
+         }
+         surface_transport_disconnected();
+         zmk_control_surface_split_disconnected();
+@@ -448,9 +448,9 @@ static void split_surface_subscribed(
+     if (!slot || params != &slot->surface_subscribe_params) {
+         return;
+     }
+-    slot->surface_indications_ready = err == 0;
++    slot->surface_notifications_ready = err == 0;
+     if (err) {
+-        LOG_WRN("Control-surface indication subscription failed (%u)", err);
++        LOG_WRN("Control-surface notification subscription failed (%u)", err);
+         surface_transport_disconnected();
+         zmk_control_surface_split_disconnected();
+         return;
+@@ -685,10 +685,10 @@ static uint8_t split_central_chrc_discovery_func(struct bt_conn *conn,
+             slot->surface_subscribe_params.value_handle =
+                 slot->surface_handle;
+             slot->surface_subscribe_params.notify =
+-                split_surface_indication_func;
++                split_surface_notification_func;
+             slot->surface_subscribe_params.subscribe =
+                 split_surface_subscribed;
+-            slot->surface_subscribe_params.value = BT_GATT_CCC_INDICATE;
++            slot->surface_subscribe_params.value = BT_GATT_CCC_NOTIFY;
+             split_central_subscribe(conn,
+                                     &slot->surface_subscribe_params);
+ #endif
+diff --git a/app/src/split/bluetooth/service.c b/app/src/split/bluetooth/service.c
+index a02479d3..a9d60f31 100644
+--- a/app/src/split/bluetooth/service.c
++++ b/app/src/split/bluetooth/service.c
+@@ -201,8 +201,7 @@ static uint8_t surface_staging[ZMK_SPLIT_SURFACE_SNAPSHOT_BYTES];
+ static uint8_t surface_next_fragment;
+ static size_t surface_received;
+ static struct surface_ack_envelope surface_current_ack;
+-static struct bt_gatt_indicate_params surface_indicate_params;
+-static atomic_t surface_indication_busy;
++static atomic_t surface_notification_busy;
+ static atomic_t surface_current_ack_valid;
+ static atomic_t surface_connection_epoch;
+ static struct bt_conn *surface_conn;
+@@ -230,30 +229,15 @@ static void surface_ack_retry_work_handler(struct k_work *work) {
+     k_work_submit_to_queue(&service_work_q, &surface_ack_work);
+ }
+ 
+-static void surface_indication_done(struct bt_conn *conn,
+-                                    struct bt_gatt_indicate_params *params,
+-                                    uint8_t err) {
+-    if (err) {
+-        LOG_WRN("Surface acknowledgement indication failed (%u)", err);
+-    }
+-}
+-
+-static void surface_indication_destroy(
+-    struct bt_gatt_indicate_params *params) {
+-    atomic_clear(&surface_current_ack_valid);
+-    atomic_clear(&surface_indication_busy);
+-    k_work_submit_to_queue(&service_work_q, &surface_ack_work);
+-}
+-
+ static void surface_ack_work_handler(struct k_work *work) {
+     ARG_UNUSED(work);
+-    if (!atomic_cas(&surface_indication_busy, 0, 1)) {
++    if (!atomic_cas(&surface_notification_busy, 0, 1)) {
+         return;
+     }
+     if (!atomic_get(&surface_current_ack_valid)) {
+         if (k_msgq_get(&surface_ack_queue, &surface_current_ack,
+                        K_NO_WAIT) < 0) {
+-            atomic_clear(&surface_indication_busy);
++            atomic_clear(&surface_notification_busy);
+             return;
+         }
+         atomic_set(&surface_current_ack_valid, 1);
+@@ -261,7 +245,7 @@ static void surface_ack_work_handler(struct k_work *work) {
+     if (surface_current_ack.connection_epoch !=
+         (uint32_t)atomic_get(&surface_connection_epoch)) {
+         atomic_clear(&surface_current_ack_valid);
+-        atomic_clear(&surface_indication_busy);
++        atomic_clear(&surface_notification_busy);
+         k_work_submit_to_queue(&service_work_q, &surface_ack_work);
+         return;
+     }
+@@ -271,25 +255,24 @@ static void surface_ack_work_handler(struct k_work *work) {
+     k_mutex_unlock(&surface_conn_mutex);
+     if (!conn) {
+         atomic_clear(&surface_current_ack_valid);
+-        atomic_clear(&surface_indication_busy);
++        atomic_clear(&surface_notification_busy);
+         return;
+     }
+-    surface_indicate_params = (struct bt_gatt_indicate_params){
+-        .uuid = BT_UUID_DECLARE_128(ZMK_SPLIT_BT_SURFACE_UUID),
+-        .func = surface_indication_done,
+-        .destroy = surface_indication_destroy,
+-        .data = &surface_current_ack.ack,
+-        .len = sizeof(surface_current_ack.ack),
+-    };
+-    int err = bt_gatt_indicate(conn, &surface_indicate_params);
++    int err = bt_gatt_notify_uuid(
++        conn, BT_UUID_DECLARE_128(ZMK_SPLIT_BT_SURFACE_UUID), NULL,
++        &surface_current_ack.ack, sizeof(surface_current_ack.ack));
+     bt_conn_unref(conn);
+     if (err < 0) {
+-        LOG_WRN("Unable to indicate surface acknowledgement (%d)", err);
+-        atomic_clear(&surface_indication_busy);
++        LOG_WRN("Unable to notify surface acknowledgement (%d)", err);
++        atomic_clear(&surface_notification_busy);
+         k_work_reschedule_for_queue(&service_work_q,
+                                     &surface_ack_retry_work,
+                                     K_MSEC(10));
++        return;
+     }
++    atomic_clear(&surface_current_ack_valid);
++    atomic_clear(&surface_notification_busy);
++    k_work_submit_to_queue(&service_work_q, &surface_ack_work);
+ }
+ 
+ static void surface_scene_apply_work(struct k_work *work);
+@@ -488,7 +471,7 @@ BT_GATT_SERVICE_DEFINE(
+ #if IS_ENABLED(CONFIG_GLOVE80_CONTROL_SURFACE)
+     BT_GATT_CHARACTERISTIC(
+         BT_UUID_DECLARE_128(ZMK_SPLIT_BT_SURFACE_UUID),
+-        BT_GATT_CHRC_WRITE_WITHOUT_RESP | BT_GATT_CHRC_INDICATE,
++        BT_GATT_CHRC_WRITE_WITHOUT_RESP | BT_GATT_CHRC_NOTIFY,
+         BT_GATT_PERM_WRITE_ENCRYPT, NULL, split_svc_surface, NULL),
+     BT_GATT_CCC(split_svc_surface_ccc,
+                 BT_GATT_PERM_READ_ENCRYPT | BT_GATT_PERM_WRITE_ENCRYPT),
+-- 
+2.48.1
+

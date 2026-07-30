@@ -20,6 +20,11 @@
     61, 67, 73, 79, 40, 41, 42, 43, 44, 45
   ],
   "rightLedChannelMapping": "mirrored-pcb hypothesis; calibrate one channel at a time",
-  "interactionTriggerPosition": 64,
-  "interactionTriggerCell": 29
+  "interactionToggleChordPositions": [64, 11],
+  "interactionToggleChordCells": [29, 6],
+  "interactionGesture": "press Magic and 1 together to arm one Control action; press again to cancel",
+  "interactionArmTimeoutMillis": 5000,
+  "interactionHoldTimeoutMillis": 5000,
+  "interactionIndicatorCell": 29,
+  "interactionIndicatorLedChannel": 39
 }

@@ -138,7 +138,7 @@ export function KeyboardCanvas({
           <p className="eyebrow">Surface</p>
           <h2 id="surface-title">Glove80 position map</h2>
           <p className="workspace-heading__description">
-            Simulated 80-cell catalog across both halves · not to scale.
+            80-cell physical position catalog across both halves · not to scale.
           </p>
         </div>
         <div className="legend" aria-label="Task state legend">

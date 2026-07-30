@@ -28,12 +28,17 @@ import { parseRuntimeCommand } from "./commandValidation";
 import { isCodexThreadId } from "./codexProtocol";
 import { CodexTaskSource } from "./codexTaskSource";
 import { FileConfigurationStore } from "./fileConfigurationStore";
+import { GenericSurfaceDevice } from "./genericSurfaceDevice";
 import { discoverGlove80ReadOnly } from "./glove80Discovery";
+import { HardwareRuntime } from "./hardwareRuntime";
 import { NodeHidTransport } from "./nodeHidTransport";
+import { cellId } from "@glove80-control-surface/surface-protocol";
 
 let mainWindow: BrowserWindow | undefined;
-let runtime: SimulationRuntime | undefined;
+let runtime: HardwareRuntime | undefined;
 let codexTaskSource: CodexTaskSource | undefined;
+let shutdownComplete = false;
+let shutdownPromise: Promise<void> | undefined;
 const closeLifecycle = new CloseLifecycle();
 
 app.setName("Glove80 Control Surface");
@@ -42,6 +47,8 @@ if (process.argv.includes("--smoke-test")) {
   void runNativeModuleSmokeTest();
 } else if (process.argv.includes("--probe-device-read-only")) {
   void runReadOnlyDeviceProbe();
+} else if (process.argv.includes("--hardware-live-smoke")) {
+  void runLiveDeviceSmokeTest();
 } else if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
@@ -66,17 +73,36 @@ if (process.argv.includes("--smoke-test")) {
   });
 
   app.on("before-quit", (event) => {
-    if (!closeLifecycle.shouldPrompt("quit")) return;
+    if (shutdownComplete) return;
     event.preventDefault();
-    void confirmClose("quit");
+    if (closeLifecycle.shouldPrompt("quit")) {
+      void confirmClose("quit");
+      return;
+    }
+    void beginShutdown();
   });
 
   app.on("will-quit", () => {
-    codexTaskSource?.stop();
     ipcMain.removeHandler(bootstrapChannel);
     ipcMain.removeHandler(dispatchChannel);
     ipcMain.removeAllListeners(draftDirtyChannel);
   });
+}
+
+function beginShutdown(): Promise<void> {
+  if (shutdownPromise) return shutdownPromise;
+  shutdownPromise = (async () => {
+    codexTaskSource?.stop();
+    await runtime?.stop();
+  })()
+    .catch((error: unknown) => {
+      console.error("Failed to close the keyboard session cleanly.", error);
+    })
+    .then(() => {
+      shutdownComplete = true;
+      app.quit();
+    });
+  return shutdownPromise;
 }
 
 function initializeApplication(): void {
@@ -85,7 +111,7 @@ function initializeApplication(): void {
     app.getPath("userData"),
     "configuration.json",
   );
-  runtime = new SimulationRuntime(
+  const taskBoard = new SimulationRuntime(
     new FileConfigurationStore(configurationPath),
     {
       initialTasks: [],
@@ -99,6 +125,11 @@ function initializeApplication(): void {
       },
       invokeTask: openCodexTask,
     },
+  );
+  runtime = new HardwareRuntime(
+    taskBoard,
+    new GenericSurfaceDevice(new NodeHidTransport()),
+    publishState,
   );
 
   ipcMain.handle(bootstrapChannel, (event) => {
@@ -123,7 +154,7 @@ function initializeApplication(): void {
   });
 }
 
-function publishState(state: Awaited<ReturnType<SimulationRuntime["bootstrap"]>>): void {
+function publishState(state: Awaited<ReturnType<HardwareRuntime["bootstrap"]>>): void {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   mainWindow.webContents.send(stateChangedChannel, state);
 }
@@ -175,7 +206,7 @@ function createMainWindow(): void {
   }
 }
 
-function requireRuntime(): SimulationRuntime {
+function requireRuntime(): HardwareRuntime {
   if (!runtime) throw new Error("Application runtime is not ready.");
   return runtime;
 }
@@ -295,6 +326,56 @@ async function runReadOnlyDeviceProbe(): Promise<void> {
   }
 }
 
+async function runLiveDeviceSmokeTest(): Promise<void> {
+  const surface = new GenericSurfaceDevice(
+    new NodeHidTransport(),
+    undefined,
+    10_000,
+  );
+  try {
+    await app.whenReady();
+    await surface.setDesired({
+      generation: Math.floor(Date.now() % 0xffff_ffff) || 1,
+      brightness: 48,
+      cells: Array.from({ length: 80 }, (_, index) => ({
+        cellId: cellId(index),
+        color:
+          index === 0
+            ? { red: 255, green: 255, blue: 255 }
+            : index === 40
+              ? { red: 0, green: 255, blue: 64 }
+              : { red: 0, green: 0, blue: 0 },
+        effect: index === 0 ? "pulse" as const : "solid" as const,
+      })),
+    });
+    await surface.enable();
+    const initialSnapshot = surface.snapshot();
+    if (!initialSnapshot.applied) {
+      throw new Error(
+        `The left half did not apply the scene: ${JSON.stringify(initialSnapshot)}`,
+      );
+    }
+    console.log(JSON.stringify(initialSnapshot, null, 2));
+    await new Promise((resolve) => setTimeout(resolve, 7_000));
+    const finalSnapshot = surface.snapshot();
+    console.log(JSON.stringify(finalSnapshot, null, 2));
+    await surface.disable();
+    console.log(
+      "Live hardware smoke test closed: the left half acknowledged CloseSession; the right-side clear remains lease-backed.",
+    );
+    app.exit(
+      finalSnapshot.connection === "connected" &&
+        finalSnapshot.applied?.disposition === "applied"
+        ? 0
+        : 2,
+    );
+  } catch (error) {
+    await surface.disable().catch(() => undefined);
+    console.error("Live hardware smoke test failed.", error);
+    app.exit(1);
+  }
+}
+
 async function openCodexTask(task: { resourceId: string }): Promise<void> {
   if (!isCodexThreadId(task.resourceId)) {
     throw new Error("Codex refused an invalid local task identity.");
@@ -304,8 +385,23 @@ async function openCodexTask(task: { resourceId: string }): Promise<void> {
       "Opening Codex Desktop tasks is unavailable on this platform.",
     );
   }
-  await shell.openExternal(
-    `codex://threads/${encodeURIComponent(task.resourceId)}`,
-    { activate: true },
-  );
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error("Opening Codex timed out.")),
+      2_000,
+    );
+    void shell.openExternal(
+      `codex://threads/${encodeURIComponent(task.resourceId)}`,
+      { activate: true },
+    ).then(
+      () => {
+        clearTimeout(timeout);
+        resolve();
+      },
+      (error: unknown) => {
+        clearTimeout(timeout);
+        reject(error);
+      },
+    );
+  });
 }

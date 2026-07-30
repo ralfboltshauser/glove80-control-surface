@@ -208,7 +208,7 @@ The inspector shows:
 - the complete state preview strip; and
 - a textual explanation for empty, stale, conflict, or error states.
 
-The non-activating HUD shown while the trigger is held says, for example:
+The non-activating HUD shown while Control is armed says, for example:
 
 ```text
 1  Design review · starts in 8 min  → Join

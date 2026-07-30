@@ -14,7 +14,7 @@ Codex task board
 ```
 
 A key keeps its ordinary typing behavior outside the firmware-installed surface
-layer. While the trigger is held, pressing a populated key opens the task it
+layer. While Control is armed, pressing a populated key opens the task it
 currently represents.
 
 The user does not bind every short-lived chat manually. Fixed-task binding is
@@ -198,7 +198,7 @@ Outside the surface layer:
 press left 1 → type "1"
 ```
 
-While the trigger is held:
+While Control is armed:
 
 ```text
 press left 1 → open/front the task currently shown on left 1
@@ -239,7 +239,7 @@ Selecting the board shows:
 - stale or unsupported reasons; and
 - a complete state preview strip.
 
-The non-activating HUD shown while the trigger is held uses text:
+The non-activating HUD shown while Control is armed uses text:
 
 ```text
 1  Release Glove80 Surface · Needs approval  → Open task

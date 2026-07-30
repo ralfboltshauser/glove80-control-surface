@@ -37,17 +37,30 @@ if (
 ) {
   throw new Error("zmkPositionToCell must be a permutation of 0..79");
 }
-if (positionToCell[topology.interactionTriggerPosition] !== topology.interactionTriggerCell) {
-  throw new Error("interaction trigger position/cell do not agree");
+if (
+  !Array.isArray(topology.interactionToggleChordPositions) ||
+  !Array.isArray(topology.interactionToggleChordCells) ||
+  topology.interactionToggleChordPositions.length !== 2 ||
+  topology.interactionToggleChordPositions.some(
+    (position, index) =>
+      positionToCell[position] !== topology.interactionToggleChordCells[index],
+  )
+) {
+  throw new Error("interaction toggle chord positions/cells do not agree");
 }
 
 const originalMagicBinding = "&magic LAYER_Magic 0";
-const triggerBinding = "&surface_magic LAYER_Magic 0";
 const originalMagicCount = input.split(originalMagicBinding).length - 1;
 if (originalMagicCount !== 2) {
   throw new Error(`expected exactly two Magic bindings, found ${originalMagicCount}`);
 }
-let derived = input.replaceAll(originalMagicBinding, triggerBinding);
+let derived = input.replace(
+  "#define LAYER_Factory 3",
+  "#define LAYER_Factory 3\n#define LAYER_Control 4",
+);
+if (derived === input) {
+  throw new Error("Factory layer definition not found");
+}
 
 const keymapStart = derived.indexOf("keymap {");
 if (keymapStart < 0) throw new Error("keymap node not found");
@@ -84,31 +97,32 @@ const behaviors = `
 /* Generated leased control-surface behaviors. */
 / {
     behaviors {
-        surface_trigger: surface_trigger {
-            compatible = "zmk,behavior-control-surface-trigger";
-            #binding-cells = <2>;
-            fallback = <&mo>;
+        surface_toggle: surface_toggle {
+            compatible = "zmk,behavior-control-surface-toggle";
+            #binding-cells = <0>;
         };
 
         surface_key: surface_key {
             compatible = "zmk,behavior-control-surface-key";
             #binding-cells = <1>;
         };
+    };
 
-        surface_magic: surface_magic {
-            compatible = "zmk,behavior-hold-tap";
-            #binding-cells = <2>;
-            flavor = "tap-preferred";
-            tapping-term-ms = <200>;
-            bindings = <&surface_trigger>, <&rgb_ug_status_macro>;
+    combos {
+        compatible = "zmk,combos";
+        surface_toggle_chord {
+            timeout-ms = <75>;
+            require-prior-idle-ms = <100>;
+            key-positions = <${topology.interactionToggleChordPositions.join(" ")}>;
+            bindings = <&surface_toggle>;
         };
     };
 };
 `;
 derived += behaviors;
 
-if (derived.split(triggerBinding).length - 1 !== 2) {
-  throw new Error("derived keymap trigger replacement count is not two");
+if (derived.split(originalMagicBinding).length - 1 !== 2) {
+  throw new Error("derived keymap must preserve both Magic layer bindings");
 }
 if (derived.split("&surface_key ").length - 1 !== 80) {
   throw new Error("derived Control layer does not contain 80 keys");
@@ -124,9 +138,9 @@ process.stdout.write(
       originalLayers: 4,
       generatedLayers: 1,
       controlBindings: 80,
-      triggerReplacements: 2,
-      triggerPosition: topology.interactionTriggerPosition,
-      triggerCell: topology.interactionTriggerCell,
+      preservedMagicBindings: 2,
+      toggleChordPositions: topology.interactionToggleChordPositions,
+      toggleChordCells: topology.interactionToggleChordCells,
       eventIdentity: "zmk-position",
     },
     null,

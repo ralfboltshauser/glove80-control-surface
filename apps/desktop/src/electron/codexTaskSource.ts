@@ -1,5 +1,5 @@
 import type { AppViewState } from "../domain/types";
-import { SimulationRuntime } from "../runtime/simulationRuntime";
+import type { TaskSourceSnapshot } from "../runtime/simulationRuntime";
 import {
   CodexAppServerClient,
   type CodexConnectionHealth,
@@ -16,7 +16,11 @@ export class CodexTaskSource {
   private stopped = false;
 
   constructor(
-    private readonly runtime: SimulationRuntime,
+    private readonly runtime: {
+      replaceTaskSource(
+        snapshot: TaskSourceSnapshot,
+      ): Promise<AppViewState>;
+    },
     private readonly onState: (state: AppViewState) => void,
   ) {}
 

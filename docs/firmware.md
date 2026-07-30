@@ -68,20 +68,27 @@ NO_SESSION
 
 DISPLAY
   ├─ committed scene → DISPLAY
-  ├─ trigger down → INTERACTIVE
+  ├─ Magic+1 → INTERACTIVE
   └─ CLOSE or expiry → NO_SESSION
 
 INTERACTIVE
   ├─ surface keys → vendor down/up events
-  ├─ trigger up → DISPLAY
+  ├─ first surface-key release → DISPLAY
+  ├─ Magic+1 or five-second inactivity → DISPLAY
+  ├─ five-second held key → synthetic Up, then DISPLAY
   └─ CLOSE or expiry → cancel surface gestures, then NO_SESSION
 ```
 
 Rules:
 
 - The generated control layer activates only while a valid session exists.
-- It is momentary; latching is not supported initially.
-- Trigger release always exits and is idempotent.
+- Magic+1 arms one action; ordinary Magic tap and hold behavior remains in the
+  preserved user layers.
+- An arm request without a live lease cannot enter Control.
+- One left indicator pulses while armed.
+- The first action-key release exits. Magic+1 cancels, five-second inactivity
+  auto-cancels, a five-second hold emits a matching synthetic Up before exit,
+  and exit is idempotent.
 - Expiry prevents all new surface presses and cancels already-started surface
   gestures; it never synthesizes ordinary typing for a consumed press.
 - Reboot and disconnect start in `NO_SESSION`.
