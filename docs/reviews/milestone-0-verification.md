@@ -2,6 +2,10 @@
 
 Date: 2026-07-30
 
+> Historical record: this milestone originally verified the Tauri shell.
+> [ADR 0007](../decisions/0007-electron-typescript-react.md) superseded that
+> shell after the Electron/native-HID uncertainty was tested directly.
+
 ## Scope
 
 This closes the blocking findings from the architecture, domain, platform, and

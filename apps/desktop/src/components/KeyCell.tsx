@@ -1,50 +1,81 @@
+import type { CSSProperties, MouseEvent } from "react";
+
 import type { KeyGeometry } from "../domain/keyboardGeometry";
-import type { TaskTile } from "../domain/types";
+import type {
+  CellPresentation,
+  ResolvedTile,
+  SemanticState,
+} from "../domain/types";
 
 interface KeyCellProps {
   geometry: KeyGeometry;
-  isBound: boolean;
+  boundOrder?: number;
+  draftOrder?: number;
+  editing: boolean;
   isSelected: boolean;
-  task?: TaskTile;
-  onSelect: (cellId: number) => void;
+  presentation?: CellPresentation;
+  tile?: ResolvedTile;
+  onSelect: (event: MouseEvent<HTMLButtonElement>, cellId: number) => void;
   onMove: (cellId: number, key: string) => void;
 }
 
-const stateNames = {
+const stateNames: Record<SemanticState, string> = {
   idle: "idle",
   working: "working",
-  completed: "completed",
+  completedUnread: "completed and unread",
   needsInput: "needs input",
-  error: "error",
+  failed: "failed",
   stale: "stale",
-} as const;
+};
 
-const stateSymbols = {
+const stateSymbols: Record<SemanticState, string> = {
   idle: "○",
   working: "●",
-  completed: "✓",
+  completedUnread: "✓",
   needsInput: "!",
-  error: "×",
+  failed: "×",
   stale: "?",
-} as const;
+};
 
 export function KeyCell({
   geometry,
-  isBound,
+  boundOrder,
+  draftOrder,
+  editing,
   isSelected,
-  task,
+  presentation,
+  tile,
   onSelect,
   onMove,
 }: KeyCellProps) {
-  const state = task?.state;
+  const state = tile?.state;
+  const order = editing ? draftOrder : boundOrder;
+  const isBound = boundOrder !== undefined;
+  const isDrafted = draftOrder !== undefined;
   const accessibleName = [
-    `${geometry.half} half ${geometry.label}`,
-    isBound ? "Codex board sample slot" : "unassigned",
-    task?.title,
+    geometry.position,
+    editing
+      ? isDrafted
+        ? `draft slot ${draftOrder + 1}`
+        : "not in draft region"
+      : isBound
+        ? `task board slot ${boundOrder + 1}`
+        : "unassigned",
+    tile?.label,
     state ? stateNames[state] : undefined,
   ]
     .filter(Boolean)
     .join(", ");
+  const style = {
+    left: geometry.x,
+    top: geometry.y,
+    transform: geometry.rotation
+      ? `rotate(${geometry.rotation}deg)`
+      : undefined,
+    "--key-light": presentation
+      ? `rgb(${presentation.color.red} ${presentation.color.green} ${presentation.color.blue})`
+      : undefined,
+  } as CSSProperties;
 
   return (
     <button
@@ -52,23 +83,41 @@ export function KeyCell({
       className="key-cell"
       data-bound={isBound}
       data-cell-id={geometry.id}
+      data-drafted={editing && isDrafted}
+      data-effect={presentation?.effect}
       data-selected={isSelected}
       data-state={state}
       aria-label={accessibleName}
-      aria-pressed={isSelected}
+      aria-pressed={editing ? isDrafted : isSelected}
       tabIndex={isSelected ? 0 : -1}
-      style={{ left: geometry.x, top: geometry.y }}
-      onClick={() => onSelect(geometry.id)}
+      title={accessibleName}
+      style={style}
+      onClick={(event) => onSelect(event, geometry.id)}
       onKeyDown={(event) => {
-        if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
+        if (
+          [
+            "ArrowLeft",
+            "ArrowRight",
+            "ArrowUp",
+            "ArrowDown",
+            "Home",
+            "End",
+          ].includes(event.key)
+        ) {
           event.preventDefault();
           onMove(geometry.id, event.key);
         }
       }}
     >
-      <span className="key-cell__legend">{geometry.label}</span>
-      {isBound && <span className="key-cell__badge">C</span>}
-      {state && <span className="key-cell__light" aria-hidden="true" />}
+      <span className="key-cell__position">{geometry.shortPosition}</span>
+      {order !== undefined && (
+        <span className="key-cell__order" aria-hidden="true">
+          {order + 1}
+        </span>
+      )}
+      {presentation && (
+        <span className="key-cell__light" aria-hidden="true" />
+      )}
       {state && (
         <span className="key-cell__state-symbol" aria-hidden="true">
           {stateSymbols[state]}

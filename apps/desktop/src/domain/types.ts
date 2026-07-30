@@ -1,16 +1,1 @@
-export type TaskState =
-  | "idle"
-  | "working"
-  | "completed"
-  | "needsInput"
-  | "error"
-  | "stale";
-
-export interface TaskTile {
-  cellId: number;
-  title: string;
-  workspace: string;
-  state: TaskState;
-  updatedLabel: string;
-  protected: boolean;
-}
+export * from "@glove80-control-surface/control-core";

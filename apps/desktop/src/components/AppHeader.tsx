@@ -1,13 +1,48 @@
-import { Eye, EyeOff, Settings2 } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  Grid3X3,
+  Settings2,
+} from "lucide-react";
+import type { RefObject } from "react";
+
+import type { DeviceView } from "../domain/types";
 
 interface AppHeaderProps {
-  paused: boolean;
+  boardConfigured: boolean;
+  controlLayerActive: boolean;
+  controlLayerButtonRef: RefObject<HTMLButtonElement | null>;
+  device: DeviceView;
+  editing: boolean;
+  pending: boolean;
+  settingsActive: boolean;
   onPause: () => void;
+  onSettings: () => void;
+  onToggleControlLayer: () => void;
 }
 
-export function AppHeader({ paused, onPause }: AppHeaderProps) {
+const syncLabels = {
+  idle: "Ready to configure",
+  applied: "Both halves synchronized",
+  partial: "Partially synchronized",
+  paused: "Surface paused",
+  disconnected: "Keyboard disconnected",
+} as const;
+
+export function AppHeader({
+  boardConfigured,
+  controlLayerActive,
+  controlLayerButtonRef,
+  device,
+  editing,
+  pending,
+  settingsActive,
+  onPause,
+  onSettings,
+  onToggleControlLayer,
+}: AppHeaderProps) {
   return (
-    <header className="app-header">
+    <header className="app-header" aria-busy={pending}>
       <div className="brand">
         <div className="brand__mark" aria-hidden="true">
           G80
@@ -18,20 +53,50 @@ export function AppHeader({ paused, onPause }: AppHeaderProps) {
         </div>
       </div>
       <div className="header-actions">
-        <div className="connection-summary">
+        <div
+          className="connection-summary"
+          data-status={device.syncStatus}
+        >
           <span className="connection-summary__dot" aria-hidden="true" />
-          Preview only
+          <span>{pending ? "Updating…" : syncLabels[device.syncStatus]}</span>
         </div>
-        <button className="button button--quiet" type="button" onClick={onPause}>
-          {paused ? <Eye size={17} /> : <EyeOff size={17} />}
-          {paused ? "Show lights" : "Dim lights"}
+        <button
+          ref={controlLayerButtonRef}
+          className="button button--primary"
+          type="button"
+          aria-pressed={controlLayerActive}
+          disabled={!boardConfigured || !device.snapshot.connected}
+          title={
+            editing
+              ? "Save or cancel region changes before previewing the saved board"
+              : undefined
+          }
+          onClick={onToggleControlLayer}
+        >
+          <Grid3X3 size={17} />
+          {controlLayerActive ? "Exit preview" : "Preview controls"}
+        </button>
+        <button
+          className="button button--quiet"
+          type="button"
+          aria-pressed={device.snapshot.paused}
+          disabled={!device.snapshot.connected}
+          onClick={onPause}
+        >
+          {device.snapshot.paused ? (
+            <Eye size={17} />
+          ) : (
+            <EyeOff size={17} />
+          )}
+          {device.snapshot.paused ? "Resume" : "Pause"}
         </button>
         <button
           className="icon-button"
           type="button"
-          aria-label="Settings unavailable in static preview"
-          title="Settings arrive with the stateful simulator"
-          disabled
+          aria-label="Appearance settings"
+          aria-pressed={settingsActive}
+          title="Appearance settings"
+          onClick={onSettings}
         >
           <Settings2 size={18} />
         </button>

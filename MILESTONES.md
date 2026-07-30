@@ -38,8 +38,9 @@ Deliver:
       requirements.
 - [x] Record the desktop-stack decision and correct macOS-only/one-process
       assumptions throughout the documentation.
-- [x] Initialize the Cargo + pnpm monorepo with a bootable Tauri shell.
-- [x] Add cross-platform CI for Rust tests/checks and frontend checks.
+- [x] Initialize the pnpm monorepo and boot the first desktop shell.
+- [x] Add cross-platform CI for TypeScript checks and Electron directory
+      packages.
 - [x] Run the milestone review and close every blocking finding.
 
 Acceptance:
@@ -47,40 +48,43 @@ Acceptance:
 ```text
 pnpm install --frozen-lockfile
 pnpm check
-cargo fmt --check
-cargo test --workspace
-cargo clippy --workspace --all-targets -- -D warnings
-pnpm --filter @glove80-control-surface/desktop build
+pnpm build
+pnpm package:dir
 ```
 
-The Tauri shell must boot on this Mac. CI must cover macOS, Windows, and Linux
-without claiming untested platform-specific HUD or HID behavior.
+The Electron shell must boot on this Mac. CI must cover macOS, Windows, and
+Linux without claiming untested platform-specific HUD or HID behavior.
 
-Evidence: public CI run
+Historical evidence: public CI run
 [`30518198882`](https://github.com/ralfboltshauser/glove80-control-surface/actions/runs/30518198882)
 passed the frontend job and native no-bundle Tauri builds on macOS 14, Ubuntu
-22.04, and Windows for commit `e8178c4`.
+22.04, and Windows for commit `e8178c4`. ADR 0007 later replaced that shell
+after a packaged Electron/node-hid probe against the connected Glove80 removed
+the native-module uncertainty. Current Electron CI evidence supersedes this
+historical stack check.
 
 ## Milestone 1 — simulated product vertical slice
 
-Status: **in progress**
+Status: **complete**
 
 Deliver:
 
-- [ ] A pure `surface-protocol` crate with versioned capabilities, scenes,
+- [x] A pure `surface-protocol` TypeScript package with versioned capabilities, scenes,
       effects, leases, cell events, strict decoders, and golden vectors.
-- [ ] A pure `control-core` crate with semantic state, sticky slot allocation,
+- [x] A pure `control-core` TypeScript package with semantic state, sticky slot allocation,
       scene composition, acknowledgements, and a single state transition API.
-- [ ] A deterministic 80-cell two-half simulator implementing the same device
+- [x] A deterministic 80-cell two-half simulator implementing the same device
       port as real HID.
-- [ ] A polished editor showing accurate Glove80 geometry, ordered region
-      selection, one-click Codex task-board assignment, inspector, connection
-      status, desired/applied divergence, Undo, and persistence.
-- [ ] A fake high-churn Codex source proving that new chats enter the board
+- [x] A polished editor showing a complete simulated 80-cell position catalog
+      (explicitly not to scale), ordered region selection, one-click Codex
+      task-board assignment, inspector, connection status, desired/applied
+      divergence, Undo, and persistence. Exact firmware topology remains an
+      M4 hardware gate.
+- [x] A fake high-churn Codex source proving that new chats enter the board
       without configuration changes.
-- [ ] A non-activating interaction HUD prototype and reduced-motion behavior.
-- [ ] Component, domain, accessibility, and screenshot tests in light and dark
-      modes.
+- [x] A non-activating interaction HUD prototype and reduced-motion behavior.
+- [x] Component, domain, and accessibility tests plus reviewed compact and
+      large screenshots in light and dark modes.
 
 Acceptance:
 
@@ -93,6 +97,13 @@ Acceptance:
   binding configuration.
 - Screenshots pass a visual review at compact and large desktop sizes.
 
+Local verification passed 86 tests, the production build, the Electron
+directory package, a packaged native-module smoke test that loaded HIDAPI
+`0.15.0`, strict macOS code-signature validation, and a same-process native
+close/reopen lifecycle test. Architecture, reliability, and UX adversarial
+reviews all passed with no remaining blocker. See
+[Milestone 1 verification](docs/reviews/milestone-1-verification.md).
+
 ## Milestone 2 — real Codex task board
 
 Status: **not started**
@@ -100,7 +111,8 @@ Status: **not started**
 Deliver:
 
 - [ ] A supervised stdio JSONL client for the user-installed
-      `codex app-server`, owned by Rust and unavailable to the renderer.
+      `codex app-server`, owned by Electron main and unavailable to the
+      renderer.
 - [ ] Executable discovery/configuration, initialization, capability
       detection, bounded queues, restart/backoff, and honest health states.
 - [ ] Dynamic task discovery using only fields exposed by the installed

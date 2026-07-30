@@ -8,9 +8,9 @@
   },
   "scripts": {
     "build": "pnpm --filter @glove80-control-surface/desktop build",
-    "check": "pnpm --filter @glove80-control-surface/desktop check",
-    "dev": "pnpm --filter @glove80-control-surface/desktop tauri dev",
-    "format:check": "cargo fmt --check",
-    "test": "pnpm --filter @glove80-control-surface/desktop test && cargo test --workspace"
+    "check": "pnpm -r --if-present check",
+    "dev": "pnpm --filter @glove80-control-surface/desktop dev",
+    "package:dir": "pnpm --filter @glove80-control-surface/desktop package:dir",
+    "test": "pnpm -r --if-present test"
   }
 }

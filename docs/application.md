@@ -37,9 +37,9 @@ right half directly.
 
 ## One-application architecture
 
-The initial product is one Tauri application with a state-owning Rust core and
-a React renderer. Logical boundaries are plain Rust modules/crates and React
-components, not services:
+The initial product is one Electron application with a state-owning TypeScript
+main process and a React renderer. Logical boundaries are plain TypeScript
+modules/packages and React components, not services:
 
 ```text
 App
@@ -69,10 +69,11 @@ App
     └── MenuBarStatus
 ```
 
-These are organizational boundaries inside one application target, not a
-collection of packages. Use initializer injection and small test fakes; do not
-add a dependency-injection framework, event broker, local RPC server, daemon,
-worker process, or public plugin loader.
+These are organizational boundaries inside one application target. The two
+small workspace packages are limited to hardware-neutral protocol and core
+state logic. Use direct construction and small test fakes; do not add a
+dependency-injection framework, event broker, local RPC server, daemon, worker
+process, or public plugin loader.
 
 `AppCoordinator` is the single writer for runtime application state. Device
 events, integration events, UI commands, and persistence results are serialized
@@ -80,11 +81,13 @@ through it. The UI observes derived immutable view state. It coordinates
 rather than containing domain logic: binding resolution and scene composition
 remain pure.
 
-One application does not mean one OS process or one executor. Tauri uses a Rust
-process and platform webview processes. The device adapter owns an independent
-task/thread for lease renewal and HID I/O; each integration owns cancellable,
-timeout-bounded observation work. Slow UI or network work must never block a
-keyboard lease. Event streams are bounded and report overflow explicitly.
+One application does not mean one OS process or one executor. Electron uses a
+main process, a sandboxed renderer, and supporting Chromium processes. The
+main process owns state and side effects. HID work stays asynchronous and may
+move to an Electron utility process only if measurement shows main-process
+latency can miss a lease. Each integration owns cancellable, timeout-bounded
+observation work. Slow UI or network work must never block a keyboard lease.
+Event streams are bounded and report overflow explicitly.
 
 ## Core data model
 
@@ -422,19 +425,20 @@ complete scene.
 
 Use:
 
-- Tauri 2 for the cross-platform application shell, windows, tray, packaging,
-  and signed updater;
-- Rust for coordination, `hidapi`, leases, persistence, platform seams, and
-  supervised Codex app-server stdio;
-- React, TypeScript, and Vite for the keyboard editor and HUD;
+- Electron for the cross-platform application shell, windows, tray, and
+  packaging;
+- TypeScript in Electron main for coordination, `node-hid`, leases, atomic
+  persistence, platform seams, and supervised Codex app-server stdio;
+- React, TypeScript, and Vite for the sandboxed keyboard editor and HUD;
 - a versioned JSON configuration document;
-- pure Rust tests, Vitest/Testing Library, deterministic fake adapters, and
-  WebDriver screenshot flows.
+- Vitest/Testing Library, deterministic fake adapters, packaged-app smoke
+  tests, and browser screenshot flows.
 
-The renderer cannot spawn processes or open HID. GUI applications do not
-reliably inherit an interactive shell `PATH`, so Codex executable discovery is
-explicit. macOS distribution is non-App-Store and code-signed/notarized.
-Windows uses WebView2; Linux documents a narrowly scoped udev rule and degrades
+The renderer is sandboxed with context isolation and cannot spawn processes or
+open HID. The preload exposes an explicit allowlist of semantic operations.
+GUI applications do not reliably inherit an interactive shell `PATH`, so Codex
+executable discovery is explicit. macOS distribution is non-App-Store and
+code-signed/notarized. Linux documents a narrowly scoped udev rule and degrades
 the no-focus HUD honestly where Wayland prevents exact placement.
 
 ## Testing strategy
@@ -460,10 +464,13 @@ the no-focus HUD honestly where Wayland prevents exact placement.
 
 ### UI
 
-- Snapshot tests for both-half geometry, selection, bound/unbound, stale,
-  paused, incompatible, and accessible themes.
+- Component and domain tests for both-half geometry, selection,
+  bound/unbound, stale, paused, incompatible, and accessible themes.
 - Keyboard-only and VoiceOver navigation.
 - Reduced-motion, no-flash, high-contrast, and increased-text settings.
+- Checked-in compact and large light/dark screenshots with a human visual
+  review; browser-harness state flows must also pass the native conformance
+  fixtures.
 
 ### Hardware
 

@@ -1,0 +1,30 @@
+import { contextBridge, ipcRenderer } from "electron";
+
+import type {
+  AppViewState,
+  RuntimeCommand,
+} from "../domain/types";
+import {
+  bootstrapChannel,
+  dispatchChannel,
+  draftDirtyChannel,
+  saveDraftChannel,
+} from "./channels";
+
+contextBridge.exposeInMainWorld("glove80ControlSurface", {
+  bootstrap: (): Promise<AppViewState> =>
+    ipcRenderer.invoke(bootstrapChannel),
+  dispatch: (command: RuntimeCommand): Promise<AppViewState> =>
+    ipcRenderer.invoke(dispatchChannel, command),
+});
+
+contextBridge.exposeInMainWorld("glove80DesktopLifecycle", {
+  setDraftDirty: (dirty: boolean): void => {
+    ipcRenderer.send(draftDirtyChannel, dirty);
+  },
+  onSaveDraftRequested: (listener: () => void): (() => void) => {
+    const wrapped = (): void => listener();
+    ipcRenderer.on(saveDraftChannel, wrapped);
+    return () => ipcRenderer.removeListener(saveDraftChannel, wrapped);
+  },
+});

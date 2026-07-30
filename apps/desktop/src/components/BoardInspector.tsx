@@ -1,25 +1,69 @@
-import { ArrowUpRight, Layers3, ShieldCheck } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  Layers3,
+  Play,
+  RotateCcw,
+  ShieldCheck,
+  Trash2,
+} from "lucide-react";
 
-import type { TaskTile } from "../domain/types";
-import { taskBoardCells } from "../domain/simulation";
+import { keyName } from "../domain/keyboardGeometry";
+import type {
+  BoardView,
+  SemanticState,
+} from "../domain/types";
 
 interface BoardInspectorProps {
+  board?: BoardView;
   selectedCell: number;
-  tasks: TaskTile[];
+  editing: boolean;
+  draftCells: number[];
+  canUndo: boolean;
+  pending: boolean;
+  onAcknowledge: (cellId: number) => void;
+  onCancelEditing: () => void;
+  onEdit: () => void;
+  onMoveDraft: (direction: -1 | 1) => void;
+  onPreviewAction: (cellId: number) => void;
+  onRemoveBoard: () => void;
+  onRemoveTask: (cellId: number) => void;
+  onSave: () => void;
+  onSelectDraftCell: (cellId: number) => void;
+  onSetTaskState: (cellId: number, state: SemanticState) => void;
+  onUndo: () => void;
 }
 
-const stateLabels = {
+const stateLabels: Record<SemanticState, string> = {
   idle: "Idle",
   working: "Working",
-  completed: "Completed",
+  completedUnread: "Completed · unread",
   needsInput: "Needs input",
-  error: "Error",
+  failed: "Failed",
   stale: "Stale",
-} as const;
+};
 
-export function BoardInspector({ selectedCell, tasks }: BoardInspectorProps) {
-  const task = tasks.find((candidate) => candidate.cellId === selectedCell);
-  const slotIndex = taskBoardCells.indexOf(selectedCell);
+export function BoardInspector(props: BoardInspectorProps) {
+  if (props.editing || !props.board) {
+    return <RegionEditor {...props} />;
+  }
+
+  const {
+    board,
+    selectedCell,
+    pending,
+    onAcknowledge,
+    onEdit,
+    onRemoveBoard,
+    onRemoveTask,
+    onPreviewAction,
+    onSetTaskState,
+  } = props;
+  const slot = board.slots.find(
+    (candidate) => candidate.cellId === selectedCell,
+  );
+  const tile = slot?.tile;
 
   return (
     <aside className="inspector" aria-label="Codex task board inspector">
@@ -28,68 +72,257 @@ export function BoardInspector({ selectedCell, tasks }: BoardInspectorProps) {
         <span className="tag">Automatic</span>
       </div>
       <div className="inspector-summary">
-        <span className="inspector-summary__icon"><Layers3 size={18} /></span>
+        <span className="inspector-summary__icon">
+          <Layers3 size={18} />
+        </span>
         <div>
-          <strong>12 sample keys</strong>
-          <p>This preview illustrates how changing tasks can keep stable slots.</p>
+          <strong>{board.cells.length} physical keys</strong>
+          <p>
+            {board.slots.filter((candidate) => candidate.tile).length} active
+            slots · {board.overflow.length} waiting
+          </p>
         </div>
       </div>
       <section className="inspector-section">
         <p className="eyebrow">Selected key</p>
         <div className="selected-key-row">
-          <kbd>{selectedCell < 40 ? `L${selectedCell + 1}` : `R${selectedCell - 39}`}</kbd>
-          <span>{slotIndex >= 0 ? `Slot ${slotIndex + 1}` : "Unassigned"}</span>
+          <kbd>{keyName(selectedCell)}</kbd>
+          <span>
+            {slot ? `Slot ${slot.slot + 1}` : "Outside task board"}
+          </span>
         </div>
       </section>
       <section className="inspector-section">
-        <p className="eyebrow">Sample task</p>
-        {task ? (
+        <p className="eyebrow">Current task</p>
+        {tile ? (
           <div className="current-task">
             <div className="current-task__heading">
-              <strong>{task.title}</strong>
-              <span className={`status-label status-label--${task.state}`}>
-                {stateLabels[task.state]}
+              <strong title={tile.label}>{tile.label}</strong>
+              <span className={`status-label status-label--${tile.state}`}>
+                {stateLabels[tile.state]}
               </span>
             </div>
-            <p>{task.workspace}</p>
-            <small>Updated {task.updatedLabel}</small>
-            {task.protected && (
+            <p title={tile.context}>{tile.context}</p>
+            <small>Runtime revision {tile.revision}</small>
+            {tile.retention === "protected" && (
               <div className="retention-note">
                 <ShieldCheck size={15} />
-                This task keeps its key while it needs attention.
+                Keeps this key while it needs attention.
               </div>
             )}
-            <button
-              className="button button--primary"
-              type="button"
-              title="Live task opening arrives with the Codex adapter"
-              disabled
+            <label className="field-label" htmlFor="simulated-task-state">
+              Simulated task state
+            </label>
+            <select
+              id="simulated-task-state"
+              value={tile.state}
+              disabled={pending || tile.state === "stale"}
+              onChange={(event) =>
+                onSetTaskState(
+                  selectedCell,
+                  event.target.value as SemanticState,
+                )
+              }
             >
-              Open in Codex <ArrowUpRight size={16} />
+              <option value="idle">Idle</option>
+              <option value="working">Working</option>
+              <option value="completedUnread">Completed · unread</option>
+              <option value="needsInput">Needs input</option>
+              <option value="failed">Failed</option>
+            </select>
+            <button
+              className="button button--secondary button--full"
+              type="button"
+              disabled={pending || !tile.action.enabled}
+              aria-describedby="simulated-open-explanation"
+              onClick={() => onPreviewAction(selectedCell)}
+            >
+              <Play size={16} /> Simulate open action
+            </button>
+            <p
+              className="action-explanation"
+              id="simulated-open-explanation"
+            >
+              Checks this key’s action in the local preview. Codex will not
+              open.
+            </p>
+            {(tile.state === "completedUnread" ||
+              tile.state === "failed") && (
+              <button
+                className="button button--secondary button--full"
+                type="button"
+                disabled={pending}
+                onClick={() => onAcknowledge(selectedCell)}
+              >
+                <Check size={16} /> Acknowledge result
+              </button>
+            )}
+            <button
+              className="button button--text button--full"
+              type="button"
+              disabled={pending}
+              onClick={() => onRemoveTask(selectedCell)}
+            >
+              Remove simulated task
             </button>
           </div>
         ) : (
           <div className="empty-task">
-            <strong>Empty slot</strong>
-            <p>The next eligible task will use this key automatically.</p>
+            <strong>{slot ? "Empty slot" : "Unassigned key"}</strong>
+            <p>
+              {slot
+                ? "The next eligible task will use this key automatically."
+                : "Edit physical keys to include this position."}
+            </p>
           </div>
         )}
       </section>
       <section className="inspector-section board-health">
-        <div><span>Observation</span><strong>Static sample</strong></div>
-        <div><span>Protected</span><strong>4 samples</strong></div>
-        <div><span>Overflow example</span><strong>+2</strong></div>
+        <div>
+          <span>Source</span>
+          <strong>{board.collectionAvailability}</strong>
+        </div>
+        <div>
+          <span>Protected</span>
+          <strong>
+            {
+              board.slots.filter(
+                (candidate) =>
+                  candidate.tile?.retention === "protected",
+              ).length
+            }
+          </strong>
+        </div>
+        <div>
+          <span>Overflow</span>
+          <strong>{board.overflow.length}</strong>
+        </div>
       </section>
       <button
         className="button button--secondary button--full"
         type="button"
-        title="Region editing arrives with the stateful simulator"
-        disabled
+        onClick={onEdit}
       >
         Edit physical keys
       </button>
+      <div className="inspector-danger">
+        <button
+          className="button button--destructive-text button--full"
+          type="button"
+          onClick={onRemoveBoard}
+        >
+          <Trash2 size={15} /> Remove task board
+        </button>
+      </div>
       <p className="inspector-footnote">
-        Sample task identities are illustrative, never saved configuration.
+        Runtime task identities are never saved in configuration.
+      </p>
+    </aside>
+  );
+}
+
+function RegionEditor({
+  board,
+  selectedCell,
+  draftCells,
+  canUndo,
+  pending,
+  onCancelEditing,
+  onMoveDraft,
+  onSave,
+  onSelectDraftCell,
+  onUndo,
+}: BoardInspectorProps) {
+  const order = draftCells.indexOf(selectedCell);
+  return (
+    <aside className="inspector" aria-label="Task board region editor">
+      <div className="panel-heading">
+        <span>{board ? "Edit task board" : "Create task board"}</span>
+        <span className="tag">{draftCells.length}/80</span>
+      </div>
+      <div className="inspector-summary inspector-summary--accent">
+        <span className="inspector-summary__icon">
+          <Layers3 size={18} />
+        </span>
+        <div>
+          <strong>Choose keys in fill order</strong>
+          <p>
+            The first eligible task uses slot 1, then slot 2, and so on.
+          </p>
+        </div>
+      </div>
+      <section className="inspector-section">
+        <p className="eyebrow">Selected position</p>
+        <div className="selected-key-row">
+          <kbd>{keyName(selectedCell)}</kbd>
+          <span>{order >= 0 ? `Slot ${order + 1}` : "Not selected"}</span>
+        </div>
+        <div className="reorder-controls">
+          <button
+            type="button"
+            disabled={order <= 0}
+            onClick={() => onMoveDraft(-1)}
+          >
+            <ArrowUp size={15} /> Earlier
+          </button>
+          <button
+            type="button"
+            disabled={order < 0 || order === draftCells.length - 1}
+            onClick={() => onMoveDraft(1)}
+          >
+            <ArrowDown size={15} /> Later
+          </button>
+          <button type="button" disabled={!canUndo} onClick={onUndo}>
+            <RotateCcw size={15} /> Undo
+          </button>
+        </div>
+      </section>
+      <section className="inspector-section region-order">
+        <p className="eyebrow">Fill order</p>
+        {draftCells.length > 0 ? (
+          <ol>
+            {draftCells.map((cellId, index) => (
+              <li key={cellId}>
+                <button
+                  type="button"
+                  data-current={cellId === selectedCell}
+                  onClick={() => onSelectDraftCell(cellId)}
+                >
+                  <span>{index + 1}</span>
+                  <strong>{keyName(cellId)}</strong>
+                </button>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <div className="empty-task">
+            <strong>No keys selected yet</strong>
+            <p>Start by clicking any key on either half.</p>
+          </div>
+        )}
+      </section>
+      <div className="inspector-actions">
+        <button
+          className="button button--primary button--full"
+          type="button"
+          disabled={draftCells.length === 0 || pending}
+          onClick={onSave}
+        >
+          {pending ? "Saving…" : board ? "Save task board" : "Create task board"}
+        </button>
+        {board && (
+          <button
+            className="button button--text button--full"
+            type="button"
+            disabled={pending}
+            onClick={onCancelEditing}
+          >
+            Cancel changes
+          </button>
+        )}
+      </div>
+      <p className="inspector-footnote">
+        This saves only stable cell IDs and preferences—never chat IDs.
       </p>
     </aside>
   );

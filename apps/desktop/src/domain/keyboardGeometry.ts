@@ -1,109 +1,105 @@
 export interface KeyGeometry {
   id: number;
   half: "left" | "right";
+  position: string;
+  shortPosition: string;
   x: number;
   y: number;
-  label: string;
+  rotation?: number;
 }
 
-const legends = [
-  "1",
-  "2",
-  "3",
-  "4",
-  "5",
-  "6",
-  "Q",
-  "W",
-  "E",
-  "R",
-  "T",
-  "Y",
-  "A",
-  "S",
-  "D",
-  "F",
-  "G",
-  "H",
-  "Z",
-  "X",
-  "C",
-  "V",
-  "B",
-  "N",
-  "⌘",
-  "⌥",
-  "⌃",
-  "⇧",
-  "Space",
-  "Return",
-  "F1",
-  "F2",
-  "F3",
-  "F4",
-  "⌫",
-  "Tab",
-  "Esc",
-  "Magic",
-  "Layer",
-  "Fn",
-];
+const columnX = [16, 61, 106, 151, 196, 241];
+const columnLift = [15, 7, 0, -4, 2, 12];
+const rowY = [20, 66, 112, 158, 204, 250];
 
-const stagger = [8, 4, 0, 2, 5, 9];
+function mirrorX(x: number): number {
+  // Mirror the complete 44px key box inside the 296px half:
+  // mirroredLeft = halfWidth - originalLeft - keyWidth.
+  return 296 - x - 44;
+}
 
-function createHalf(half: "left" | "right", idOffset: number): KeyGeometry[] {
+function createWell(
+  half: "left" | "right",
+  idOffset: number,
+): KeyGeometry[] {
   const keys: KeyGeometry[] = [];
-
-  for (let row = 0; row < 5; row += 1) {
-    for (let column = 0; column < 6; column += 1) {
-      const localId = row * 6 + column;
-      const x = 26 + column * 47;
+  let localId = 0;
+  for (let row = 1; row <= 6; row += 1) {
+    const columns =
+      row === 1 || row === 6
+        ? half === "left"
+          ? [6, 5, 4, 3, 2]
+          : [2, 3, 4, 5, 6]
+        : half === "left"
+          ? [6, 5, 4, 3, 2, 1]
+          : [1, 2, 3, 4, 5, 6];
+    columns.forEach((column, visualIndex) => {
+      const leftColumnIndex =
+        half === "left" ? 6 - column : column - 1;
+      const x = columnX[leftColumnIndex];
       keys.push({
         id: idOffset + localId,
         half,
-        x: half === "left" ? x : 328 - x,
-        y: 50 + row * 41 + stagger[column],
-        label: legends[localId],
+        position: `${half === "left" ? "LH" : "RH"} C${column}R${row}`,
+        shortPosition: `C${column}R${row}`,
+        x: half === "left" ? x : mirrorX(x),
+        y: rowY[row - 1] + columnLift[leftColumnIndex],
       });
-    }
-  }
-
-  for (let index = 0; index < 4; index += 1) {
-    const localId = 30 + index;
-    const x = 73 + index * 47;
-    keys.push({
-      id: idOffset + localId,
-      half,
-      x: half === "left" ? x : 328 - x,
-      y: 7 + stagger[index + 1],
-      label: legends[localId],
+      localId += 1;
     });
   }
-
-  const thumbPositions = [
-    [50, 270],
-    [98, 280],
-    [146, 287],
-    [194, 287],
-    [242, 280],
-    [290, 270],
-  ];
-
-  thumbPositions.forEach(([leftX, y], index) => {
-    const localId = 34 + index;
-    keys.push({
-      id: idOffset + localId,
-      half,
-      x: half === "left" ? leftX : 328 - leftX,
-      y,
-      label: legends[localId],
-    });
-  });
-
   return keys;
+}
+
+function createThumbs(
+  half: "left" | "right",
+  idOffset: number,
+): KeyGeometry[] {
+  const positions = [
+    { x: 156, y: 267, rotation: -8 },
+    { x: 199, y: 276, rotation: -5 },
+    { x: 242, y: 282, rotation: -2 },
+    { x: 150, y: 310, rotation: -9 },
+    { x: 193, y: 319, rotation: -5 },
+    { x: 236, y: 325, rotation: -2 },
+  ];
+  return positions.map((position, index) => {
+    const thumb = index + 1;
+    return {
+      id: idOffset + 34 + index,
+      half,
+      position: `${half === "left" ? "LH" : "RH"} T${thumb}`,
+      shortPosition: `T${thumb}`,
+      x: half === "left" ? position.x : mirrorX(position.x),
+      y: position.y,
+      rotation:
+        half === "left" ? position.rotation : -position.rotation,
+    };
+  });
+}
+
+function createHalf(
+  half: "left" | "right",
+  idOffset: number,
+): KeyGeometry[] {
+  return [
+    ...createWell(half, idOffset),
+    ...createThumbs(half, idOffset),
+  ];
 }
 
 export const keyboardGeometry = {
   left: createHalf("left", 0),
   right: createHalf("right", 40),
 };
+
+export const allKeys = [
+  ...keyboardGeometry.left,
+  ...keyboardGeometry.right,
+];
+
+export const keyById = new Map(allKeys.map((key) => [key.id, key]));
+
+export function keyName(cellId: number): string {
+  return keyById.get(cellId)?.position ?? `Cell ${cellId}`;
+}

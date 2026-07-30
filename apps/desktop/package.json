@@ -1,32 +1,84 @@
 {
   "name": "@glove80-control-surface/desktop",
+  "description": "A dynamic Glove80 control surface for Codex tasks and calendar context.",
+  "author": "Ralf Boltshauser",
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "main": "dist-electron/main.cjs",
   "scripts": {
-    "build": "tsc -b && vite build",
-    "check": "tsc --noEmit && vitest run",
-    "dev": "vite",
-    "tauri": "tauri",
+    "build": "pnpm build:renderer && pnpm build:electron",
+    "build:electron": "node scripts/build-electron.mjs",
+    "build:renderer": "tsc --noEmit && vite build",
+    "check": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit && vitest run",
+    "dev": "node scripts/dev.mjs",
+    "package": "pnpm build && electron-builder",
+    "package:dir": "pnpm build && node scripts/package-dir.mjs",
+    "smoke:packaged": "node scripts/smoke-packaged.mjs",
+    "start": "electron .",
     "test": "vitest run"
   },
   "dependencies": {
-    "@tauri-apps/api": "2.11.1",
+    "@glove80-control-surface/control-core": "workspace:*",
     "lucide-react": "1.27.0",
+    "node-hid": "3.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "2.11.4",
     "@testing-library/jest-dom": "7.0.0",
     "@testing-library/react": "16.3.2",
     "@testing-library/user-event": "14.6.1",
+    "@types/culori": "4.0.1",
+    "@types/node": "^26.1.2",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "5.2.0",
+    "axe-core": "4.10.3",
+    "culori": "4.0.2",
+    "electron": "41.5.0",
+    "electron-builder": "26.8.1",
+    "esbuild": "0.27.4",
     "jsdom": "29.1.1",
     "typescript": "5.9.3",
     "vite": "7.3.6",
     "vitest": "4.1.10"
+  },
+  "build": {
+    "appId": "com.ralfboltshauser.glove80-control-surface",
+    "productName": "Glove80 Control Surface",
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/node-hid/**/*.node"
+    ],
+    "directories": {
+      "output": "release",
+      "buildResources": "resources"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "!**/node_modules/node-hid/hidapi/**/*",
+      "!**/node_modules/node-hid/src/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "linux": {
+      "category": "Utility",
+      "target": [
+        "AppImage",
+        "deb"
+      ]
+    }
   }
 }

@@ -1,6 +1,6 @@
 # ADR 0006: Tauri 2 with a Rust core and React UI
 
-- Status: accepted
+- Status: Superseded by ADR 0007
 - Date: 2026-07-29
 
 ## Context

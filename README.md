@@ -8,8 +8,8 @@ into a software control surface without giving up its normal keyboard layout.
 Desktop integrations can attach live state and actions to physical keys.
 
 > [!IMPORTANT]
-> This repository is in the design and hardware-validation phase. It does not
-> yet contain firmware that should be flashed. No release is currently
+> This repository currently runs as a deterministic desktop simulator. It does
+> not yet contain firmware that should be flashed, and no release is currently
 > installable.
 
 ## The idea
@@ -36,9 +36,10 @@ The first product has two integrations:
 None of those concepts belong in the firmware. They are host-side integrations
 using a generic control-surface protocol.
 
-![Static task-board editor preview in dark mode](docs/screenshots/milestone-0-preview-dark.png)
+![Packaged Electron task-board editor in dark mode](docs/screenshots/milestone-1/electron-native-dark.png)
 
-The screenshot is a static design preview, not a live simulator and not a claim
+The screenshot is the packaged Milestone 1 Electron application using
+generated tasks. It performs no hardware reads or writes and is not a claim
 that 80-cell firmware is already installed.
 
 ## Product model
@@ -50,7 +51,7 @@ Glove80 firmware
   └── emits key down/up events in a momentary interaction layer
 
 One cross-platform desktop application
-  ├── owns the USB HID session in its Rust core
+  ├── owns the USB HID session in its Electron main process
   ├── stores bindings for every available RGB cell
   ├── runs built-in integrations
   ├── resolves semantic state into accessible visuals
@@ -89,7 +90,7 @@ and [Calendar integration UX](docs/integration-calendar.md).
 - macOS, Windows, and Linux, with macOS receiving the most platform polish
 - USB transport first
 - all 80 RGB cells across both halves as the product target
-- one Tauri desktop application with a state-owning Rust core
+- one Electron desktop application with a state-owning TypeScript main process
 - Codex first; Calendar ships only if its small evidence gate passes
 - solid and pulse; blink is accepted only if later accessibility and power
   evidence justify it
@@ -104,11 +105,12 @@ evidence-gated expansions.
 
 ## Repository status
 
-The repository now contains the Tauri/React shell, pure Rust protocol and
-allocation crates, a static 80-cell design preview, tests, and the
-specifications that govern each implementation milestone. The stateful
-simulator is Milestone 1 work. No firmware in this repository should be flashed
-yet.
+The repository now contains an Electron/React desktop application, a
+state-owning TypeScript simulator, pure protocol and control-core packages, a
+complete simulated 80-cell position editor, a control-layer HUD prototype,
+atomic persistence, shared native/browser conformance fixtures, and the
+specifications that govern each implementation milestone. No firmware in this
+repository should be flashed yet.
 
 - [Executable milestones](MILESTONES.md)
 - [Roadmap](docs/roadmap.md)

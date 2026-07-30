@@ -5,6 +5,11 @@
 - Outcome: conditional pass; implementation may continue with the evidence
   gates below
 
+> Historical record: the Tauri/Rust stack finding below was superseded by
+> [ADR 0007](../decisions/0007-electron-typescript-react.md) after a packaged
+> Electron/node-hid probe succeeded against the connected Glove80. The product
+> and Codex findings remain current.
+
 ## Findings that changed the plan
 
 ### A saved key-to-chat binding is the wrong product

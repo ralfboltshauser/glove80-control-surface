@@ -1,0 +1,238 @@
+[
+  {
+    "name": "left-only complete scene acknowledges both supported halves",
+    "commands": [
+      { "kind": "assignTaskBoard", "cells": [0, 1] }
+    ],
+    "expect": {
+      "boardCells": [0, 1],
+      "syncStatus": "applied",
+      "rightHalfConnected": true,
+      "generationAcks": "both",
+      "sourceTaskCount": 6,
+      "overflowCount": 4,
+      "interactionActive": false
+    }
+  },
+  {
+    "name": "right disconnect makes a later left-only clear partial",
+    "commands": [
+      { "kind": "assignTaskBoard", "cells": [0, 40] },
+      { "kind": "setRightHalfConnected", "connected": false },
+      { "kind": "assignTaskBoard", "cells": [0, 1] }
+    ],
+    "expect": {
+      "boardCells": [0, 1],
+      "syncStatus": "partial",
+      "rightHalfConnected": false,
+      "generationAcks": "leftOnly",
+      "sourceTaskCount": 6,
+      "overflowCount": 4,
+      "interactionActive": false
+    }
+  },
+  {
+    "name": "reset preserves configuration and rebuilds every transient",
+    "commands": [
+      { "kind": "assignTaskBoard", "cells": [0, 1, 2, 3, 4, 5] },
+      { "kind": "acknowledge", "cellId": 3 },
+      { "kind": "setRightHalfConnected", "connected": false },
+      { "kind": "burst" },
+      { "kind": "resetSimulation" }
+    ],
+    "expect": {
+      "boardCells": [0, 1, 2, 3, 4, 5],
+      "syncStatus": "applied",
+      "rightHalfConnected": true,
+      "generationAcks": "both",
+      "sourceTaskCount": 6,
+      "overflowCount": 0,
+      "interactionActive": false,
+      "taskStates": {
+        "task-3": "completedUnread"
+      }
+    }
+  },
+  {
+    "name": "interaction freezes the visible allocation during source churn",
+    "commands": [
+      { "kind": "assignTaskBoard", "cells": [0, 1, 2, 3, 4, 5] },
+      { "kind": "beginInteraction", "epoch": 9 },
+      { "kind": "burst" }
+    ],
+    "expect": {
+      "boardCells": [0, 1, 2, 3, 4, 5],
+      "slotResources": [
+        "task-1",
+        "task-5",
+        "task-2",
+        "task-3",
+        "task-4",
+        "task-6"
+      ],
+      "syncStatus": "applied",
+      "rightHalfConnected": true,
+      "generationAcks": "both",
+      "sourceTaskCount": 11,
+      "overflowCount": 0,
+      "interactionActive": true
+    }
+  },
+  {
+    "name": "source expiry preserves identity and marks actions stale",
+    "commands": [
+      { "kind": "assignTaskBoard", "cells": [0, 40] },
+      { "kind": "expireSource" }
+    ],
+    "expect": {
+      "boardCells": [0, 40],
+      "slotResources": ["task-1", "task-5"],
+      "syncStatus": "applied",
+      "rightHalfConnected": true,
+      "generationAcks": "both",
+      "sourceTaskCount": 6,
+      "overflowCount": 4,
+      "interactionActive": false,
+      "collectionAvailability": "stale",
+      "taskStates": {
+        "task-1": "stale",
+        "task-5": "stale"
+      }
+    }
+  },
+  {
+    "name": "empty source commits a complete clear scene",
+    "commands": [
+      { "kind": "assignTaskBoard", "cells": [0] },
+      { "kind": "removeTask", "cellId": 0 },
+      { "kind": "removeTask", "cellId": 0 },
+      { "kind": "removeTask", "cellId": 0 },
+      { "kind": "removeTask", "cellId": 0 },
+      { "kind": "removeTask", "cellId": 0 },
+      { "kind": "removeTask", "cellId": 0 }
+    ],
+    "expect": {
+      "boardCells": [0],
+      "slotResources": [null],
+      "syncStatus": "applied",
+      "rightHalfConnected": true,
+      "generationAcks": "both",
+      "sourceTaskCount": 0,
+      "overflowCount": 0,
+      "interactionActive": false
+    }
+  },
+  {
+    "name": "pause cancels an active interaction authoritatively",
+    "commands": [
+      { "kind": "assignTaskBoard", "cells": [0, 40] },
+      { "kind": "beginInteraction", "epoch": 21 },
+      { "kind": "setPaused", "paused": true }
+    ],
+    "expect": {
+      "boardCells": [0, 40],
+      "syncStatus": "paused",
+      "rightHalfConnected": true,
+      "generationAcks": "none",
+      "sourceTaskCount": 6,
+      "overflowCount": 4,
+      "interactionActive": false
+    }
+  },
+  {
+    "name": "device disconnect cancels an active interaction authoritatively",
+    "commands": [
+      { "kind": "assignTaskBoard", "cells": [0, 40] },
+      { "kind": "beginInteraction", "epoch": 22 },
+      { "kind": "setDeviceConnected", "connected": false }
+    ],
+    "expect": {
+      "boardCells": [0, 40],
+      "syncStatus": "disconnected",
+      "rightHalfConnected": true,
+      "generationAcks": "none",
+      "sourceTaskCount": 6,
+      "overflowCount": 4,
+      "interactionActive": false
+    }
+  },
+  {
+    "name": "scene expiry cancels an active interaction authoritatively",
+    "commands": [
+      { "kind": "assignTaskBoard", "cells": [0, 40] },
+      { "kind": "beginInteraction", "epoch": 23 },
+      { "kind": "expireScene" }
+    ],
+    "expect": {
+      "boardCells": [0, 40],
+      "syncStatus": "partial",
+      "rightHalfConnected": true,
+      "generationAcks": "none",
+      "sourceTaskCount": 6,
+      "overflowCount": 4,
+      "interactionActive": false
+    }
+  },
+  {
+    "name": "acknowledgement never renews an expired source lease",
+    "commands": [
+      { "kind": "assignTaskBoard", "cells": [0] },
+      { "kind": "expireSource" },
+      { "kind": "acknowledge", "cellId": 0 }
+    ],
+    "expect": {
+      "boardCells": [0],
+      "slotResources": ["task-1"],
+      "syncStatus": "applied",
+      "rightHalfConnected": true,
+      "generationAcks": "both",
+      "sourceTaskCount": 6,
+      "overflowCount": 5,
+      "interactionActive": false,
+      "collectionAvailability": "stale",
+      "taskStates": {
+        "task-1": "stale"
+      }
+    }
+  },
+  {
+    "name": "acknowledged result becomes evictable on real source churn",
+    "commands": [
+      { "kind": "assignTaskBoard", "cells": [0, 1, 2, 3] },
+      { "kind": "acknowledge", "cellId": 3 },
+      { "kind": "burst" }
+    ],
+    "expect": {
+      "boardCells": [0, 1, 2, 3],
+      "slotResources": ["task-1", "task-5", "task-2", "task-7"],
+      "syncStatus": "applied",
+      "rightHalfConnected": true,
+      "generationAcks": "both",
+      "sourceTaskCount": 11,
+      "overflowCount": 7,
+      "interactionActive": false
+    }
+  },
+  {
+    "name": "assignment cannot replace a frozen interaction",
+    "commands": [
+      { "kind": "assignTaskBoard", "cells": [0, 40] },
+      { "kind": "beginInteraction", "epoch": 24 }
+    ],
+    "rejectCommand": {
+      "kind": "assignTaskBoard",
+      "cells": [1, 41]
+    },
+    "errorContains": "active control-layer interaction",
+    "expect": {
+      "boardCells": [0, 40],
+      "slotResources": ["task-1", "task-5"],
+      "syncStatus": "applied",
+      "rightHalfConnected": true,
+      "generationAcks": "both",
+      "sourceTaskCount": 6,
+      "overflowCount": 4,
+      "interactionActive": true
+    }
+  }
+]

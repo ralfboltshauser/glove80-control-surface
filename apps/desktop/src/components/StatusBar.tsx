@@ -1,19 +1,62 @@
-import { Eye } from "lucide-react";
+import {
+  Cable,
+  CirclePause,
+  CloudOff,
+  Layers3,
+} from "lucide-react";
+
+import type { AppViewState } from "../domain/types";
 
 interface StatusBarProps {
-  paused: boolean;
+  state: AppViewState;
 }
 
-export function StatusBar({ paused }: StatusBarProps) {
+const statusCopy = {
+  idle: "Simulation · no scene configured",
+  applied: "Simulation · complete scene applied",
+  partial: "Simulation · desired and applied differ",
+  paused: "Simulation · surface output paused",
+  disconnected: "Simulation · keyboard unavailable",
+} as const;
+
+export function StatusBar({ state }: StatusBarProps) {
+  const { device, board } = state;
+  const StatusIcon =
+    device.syncStatus === "paused"
+      ? CirclePause
+      : device.syncStatus === "disconnected"
+        ? CloudOff
+        : device.syncStatus === "idle"
+          ? Layers3
+          : Cable;
+
   return (
     <footer className="status-bar">
-      <span>
-        <Eye size={15} />
-        {paused ? "Preview lights dimmed — no device command sent" : "Static preview rendered — no scene sent"}
+      <span data-status={device.syncStatus}>
+        <StatusIcon size={15} />
+        {statusCopy[device.syncStatus]}
       </span>
-      <button type="button" title="Diagnostics arrive with device and integration adapters" disabled>
-        Diagnostics
-      </button>
+      <span className="generation-readout">
+        Desired <strong>{formatGeneration(device.desiredGeneration)}</strong>
+        <i aria-hidden="true">·</i>
+        Left{" "}
+        <strong>
+          {formatGeneration(device.snapshot.leftGeneration)}
+        </strong>
+        <i aria-hidden="true">·</i>
+        Right{" "}
+        <strong>
+          {formatGeneration(device.snapshot.rightGeneration)}
+        </strong>
+      </span>
+      <span>
+        Generated source{" "}
+        <strong>{board?.collectionAvailability ?? "not configured"}</strong>
+      </span>
     </footer>
   );
+}
+
+function formatGeneration(generation?: number): string {
+  return generation === undefined ? "—" : String(generation);
 }

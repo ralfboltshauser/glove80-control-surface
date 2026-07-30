@@ -30,8 +30,10 @@ implementation commitments.
 
 ## Before shipping the desktop stack
 
-1. Can one Tauri application reliably own HID, run while its window is closed,
-   and present a no-focus HUD on each target platform without a helper service?
+1. Can one Electron application reliably keep its HID lease while its window
+   is closed and present a no-focus HUD on each target platform without a
+   helper service? The packaged macOS HID probe is positive; lifecycle and
+   Windows/Linux behavior remain to be proven.
 2. What local configuration format supports resolved collections, sticky
    allocation, and accessible presentation overrides without pretending to be
    a public integration API?

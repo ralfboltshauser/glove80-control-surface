@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart LR
-    Integrations["Built-in integrations"] --> App["One Tauri desktop application"]
+    Integrations["Built-in integrations"] --> App["One Electron desktop application"]
     Config["Local bindings + preferences"] <--> App
     App <-->|"Vendor HID over USB"| Central["Glove80 left / central"]
     Central <-->|"Versioned scene snapshot + input"| Peripheral["Glove80 right / peripheral"]
@@ -26,7 +26,8 @@ The firmware extension exposes a capability-described **control surface**:
 
 ### Desktop application
 
-One state-owning Rust core initially owns all runtime responsibilities:
+One state-owning TypeScript runtime in Electron main initially owns all runtime
+responsibilities:
 
 - opens the HID device;
 - runs built-in integrations;
@@ -42,14 +43,23 @@ adapter hides reports, sessions, fragmentation, and both-half acknowledgements
 behind complete desired scenes. Desired and device-applied state remain
 separate so the UI never claims a stale half is synchronized.
 
-React renders the editor and HUD through Tauri's platform webview. It receives
-revisioned view state and sends semantic user intentions; it never receives
-HID, arbitrary shell, credential, or unrestricted filesystem access.
+React renders the editor and HUD in Electron's sandboxed renderer. A narrow
+preload bridge exposes only revisioned bootstrap state and validated semantic
+commands. The renderer never receives Node.js, HID, arbitrary shell,
+credential, or unrestricted filesystem access.
+
+Electron main is authoritative. A browser-only simulator exists for fast
+visual and accessibility testing because a normal browser has no preload
+bridge. It is a visual harness, not a second product core: shared
+command-sequence fixtures exercise the same complete-scene, split
+acknowledgement, reset, expiry, churn, and interaction-freeze invariants
+against both implementations.
 
 These remain internal module boundaries, not services or a public SDK. A
 daemon, authenticated local RPC, and worker isolation are added only if
-measured lifecycle or security needs justify them. “One application” does not
-claim one OS process: Tauri uses a Rust process plus platform webview processes.
+measured lifecycle or security needs justify them. Electron's normal main,
+renderer, and utility processes are an implementation detail; there is one
+logical state owner and no separately installed helper.
 
 The internal ports, visual keyboard editor, state flows, implementation
 recommendation, and delivery phases are specified in
