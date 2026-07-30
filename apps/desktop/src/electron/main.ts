@@ -329,8 +329,6 @@ async function runReadOnlyDeviceProbe(): Promise<void> {
 async function runLiveDeviceSmokeTest(): Promise<void> {
   const surface = new GenericSurfaceDevice(
     new NodeHidTransport(),
-    undefined,
-    10_000,
   );
   try {
     await app.whenReady();

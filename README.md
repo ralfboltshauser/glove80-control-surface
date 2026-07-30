@@ -8,10 +8,11 @@ into a software control surface without giving up its normal keyboard layout.
 Desktop integrations can attach live state and actions to physical keys.
 
 > [!IMPORTANT]
-> The current keyboard has hardware-tested alpha1 firmware. The repository
-> contains a reproducible, unflashed alpha6 candidate and matching recovery
-> pair. Alpha6 is not installable until the grouped hardware gate is reviewed
-> and the user explicitly approves both flashes.
+> The current keyboard runs alpha6: Swiss v8 typing and the complete left-side
+> USB protocol are hardware-proven, but its right-side scene transfer repeatedly
+> aborts before rendering. The repository contains a reproducible, unflashed
+> alpha7 correction and matching recovery pair. Alpha7 still requires explicit
+> approval for each half and a grouped post-flash hardware gate.
 
 ## The idea
 
@@ -106,8 +107,10 @@ and [Calendar integration UX](docs/integration-calendar.md).
 
 Firmware work expanded in measured steps: the existing six-cell experiment
 remains a regression fixture, then complete 40-cell left scenes and
-synchronized 40-cell right scenes were implemented. Alpha6 targets all 80
-cells, but is not a release until the grouped physical acceptance gate passes.
+synchronized 40-cell right scenes were implemented. Alpha6 proved the complete
+left path but exposed an undersized bounded BLE transfer window on the right.
+Alpha7 corrects that bound while retaining a separate lease-expiry reserve; it
+is not a release until the grouped physical acceptance gate passes.
 Bluetooth, a public plugin SDK, and a generic Calendar-provider layer remain
 separate evidence-gated expansions.
 
@@ -117,8 +120,9 @@ The repository now contains an Electron/React desktop application wired to the
 real generic HID device, a supervised read-only Codex task source, a
 state-owning TypeScript control core, a complete 80-cell position editor,
 leased-session firmware and recovery builds, atomic persistence, conformance
-fixtures, and the specifications that govern each milestone. Alpha5 still
-requires explicit flash approval and the grouped physical acceptance matrix.
+fixtures, and the specifications that govern each milestone. Alpha7 is
+offline-verified but still requires explicit per-half flash approval and the
+grouped physical acceptance matrix.
 
 - [Executable milestones](MILESTONES.md)
 - [Roadmap](docs/roadmap.md)

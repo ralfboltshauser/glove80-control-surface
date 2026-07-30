@@ -4,6 +4,12 @@ All notable changes to this project will be documented here.
 
 ## Unreleased
 
+- Recorded the alpha6 hardware result: preserved split typing and complete
+  left-side control worked, while the twelve-fragment right-side scene
+  transfer reproducibly aborted before rendering or acknowledgement.
+- Added reproducible alpha7 firmware with a 3.5-second bounded split-transfer
+  window inside a 4-second lease reserve, plus encrypted acknowledgement
+  permission, without removing either action bank.
 - Established the product, architecture, safety, firmware, integration, and roadmap
   specifications.
 - Separated ambient display from momentary interaction.

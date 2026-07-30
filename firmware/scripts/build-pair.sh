@@ -21,7 +21,7 @@ esac
 
 expected_zmk_commit=2f73a230e2fc7b2bd64a9736181e87bf54338131
 expected_zephyr_commit=dacab4875df72109b96cc8977547a0dc04875bcd
-expected_surface_diff=dbd06aa9c363fae57cb9dc706c15bd47154eb5dcba00589b3fa7212bef8bf3e3
+expected_surface_diff=410853ac090ec6859d161d6917914dce50307df3d179c45375ef7b1fcc9881a2
 
 cmake_bin=${CMAKE_BIN:-cmake}
 ninja_bin=${NINJA_BIN:-ninja}

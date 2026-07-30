@@ -1,0 +1,73 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ralf Boltshauser <ralf@example.com>
+Date: Thu, 30 Jul 2026 23:55:00 +0200
+Subject: [PATCH 6/6] fix: allow bounded split scene delivery
+
+The 190-byte right-half snapshot requires twelve serialized BLE writes.
+With the configured split peripheral latency, the previous 500 ms submission
+and 1000 ms delivery bounds could abort a healthy transfer before its final
+fragment.
+
+Retain a bounded transfer and a separate lease reserve, but give delivery
+3500 ms and reserve 4000 ms. Also mark acknowledgement notifications as
+encrypted reads so Zephyr enforces link encryption when sending them.
+---
+ app/src/control_surface.c         |  2 +-
+ app/src/split/bluetooth/central.c | 15 +++++++++++----
+ app/src/split/bluetooth/service.c |  3 ++-
+ 3 files changed, 14 insertions(+), 6 deletions(-)
+
+diff --git a/app/src/control_surface.c b/app/src/control_surface.c
+index 9e9f4ae0..3ed7bd77 100644
+--- a/app/src/control_surface.c
++++ b/app/src/control_surface.c
+@@ -43,7 +43,7 @@ __weak int zmk_split_surface_clear(uint32_t session_id, uint32_t generation,
+ #define SURFACE_MAX_PACKET_BYTES ZMK_CONTROL_SURFACE_REPORT_BODY_BYTES
+ #define SURFACE_MAX_FRAGMENT_CELLS 6
+ #define SURFACE_MAX_FRAGMENTS 14
+-#define SURFACE_FIRMWARE_BUILD_ID "g80m4a06"
++#define SURFACE_FIRMWARE_BUILD_ID "g80m4a07"
+ #define SURFACE_TOPOLOGY_ID "glove80-rgb-80-v1"
+ #define SURFACE_MAX_BRIGHTNESS 96
+ #define SURFACE_INTERACTION_ARM_MS 30000
+diff --git a/app/src/split/bluetooth/central.c b/app/src/split/bluetooth/central.c
+index 83939159..4eabc63a 100644
+--- a/app/src/split/bluetooth/central.c
++++ b/app/src/split/bluetooth/central.c
+@@ -1141,9 +1141,16 @@ static struct bt_conn *surface_transport_conn;
+ static uint16_t surface_transport_handle;
+ K_MUTEX_DEFINE(surface_mutex);
+ 
+-#define SURFACE_SPLIT_LEASE_RESERVE_MS 1000
+-#define SURFACE_SPLIT_SUBMIT_BUDGET_MS 500
+-#define SURFACE_SPLIT_DELIVERY_BUDGET_MS 1000
++/*
++ * A 190-byte scene requires twelve serialized writes. The configured split
++ * peripheral may skip up to 30 connection events, so the earlier 500/1000 ms
++ * bounds could abort a healthy transfer before its final fragment. Keep a
++ * separate 500 ms reserve after the delivery budget so a scene accepted at
++ * the deadline still expires on the right before the central lease.
++ */
++#define SURFACE_SPLIT_LEASE_RESERVE_MS 4000
++#define SURFACE_SPLIT_SUBMIT_BUDGET_MS 3500
++#define SURFACE_SPLIT_DELIVERY_BUDGET_MS 3500
+ BUILD_ASSERT(SURFACE_SPLIT_SUBMIT_BUDGET_MS <
+              SURFACE_SPLIT_LEASE_RESERVE_MS);
+ BUILD_ASSERT(SURFACE_SPLIT_DELIVERY_BUDGET_MS <=
+diff --git a/app/src/split/bluetooth/service.c b/app/src/split/bluetooth/service.c
+index d6f828cc..5aa758aa 100644
+--- a/app/src/split/bluetooth/service.c
++++ b/app/src/split/bluetooth/service.c
+@@ -477,7 +477,8 @@ BT_GATT_SERVICE_DEFINE(
+     BT_GATT_CHARACTERISTIC(
+         BT_UUID_DECLARE_128(ZMK_SPLIT_BT_SURFACE_UUID),
+         BT_GATT_CHRC_WRITE_WITHOUT_RESP | BT_GATT_CHRC_NOTIFY,
+-        BT_GATT_PERM_WRITE_ENCRYPT, NULL, split_svc_surface, NULL),
++        BT_GATT_PERM_WRITE_ENCRYPT | BT_GATT_PERM_READ_ENCRYPT,
++        NULL, split_svc_surface, NULL),
+     BT_GATT_CCC(split_svc_surface_ccc,
+                 BT_GATT_PERM_READ_ENCRYPT | BT_GATT_PERM_WRITE_ENCRYPT),
+ #endif
+-- 
+2.50.1
+

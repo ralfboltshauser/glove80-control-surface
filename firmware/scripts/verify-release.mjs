@@ -12,8 +12,8 @@ const EXPECTED_LAYOUT =
   "aa4de7a2e830fa70462cc3a6f1779b97c335de045edf5a7dbdb2ed9c156f91d3";
 const EXPECTED_DERIVED =
   "b0256aafbd55bf40cee502371e8bdace025417cdf936e051fd8a0a8b731516e9";
-const EXPECTED_BUILD_ID = "g80m4a06";
-const EXPECTED_RELEASE_ID = "m4-alpha6";
+const EXPECTED_BUILD_ID = "g80m4a07";
+const EXPECTED_RELEASE_ID = "m4-alpha7";
 const EXPECTED_PROTOCOL_VERSION = 3;
 const EXPECTED_TOPOLOGY_ID = "glove80-rgb-80-v1";
 const EXPECTED_ZMK_COMMIT =
@@ -22,7 +22,7 @@ const EXPECTED_ZEPHYR_COMMIT =
   "dacab4875df72109b96cc8977547a0dc04875bcd";
 const EXPECTED_ZEPHYR_SDK = "0.16.3";
 const EXPECTED_SOURCE_DIFF =
-  "dbd06aa9c363fae57cb9dc706c15bd47154eb5dcba00589b3fa7212bef8bf3e3";
+  "410853ac090ec6859d161d6917914dce50307df3d179c45375ef7b1fcc9881a2";
 const EXPECTED_UF2_FAMILY = {
   lh: 0x9807b007,
   rh: 0x9808b007,
@@ -36,6 +36,8 @@ const EXPECTED_PATCHES = [
   "firmware/patches/0003-harden-leases-and-toggle-control.patch",
   "firmware/patches/0004-harden-one-shot-interaction-and-split-deadlines.patch",
   "firmware/patches/0005-add-two-bank-hold-interaction.patch",
+  "firmware/patches/0006-fix-split-scene-delivery-budget.patch",
+  "firmware/patches/0007-fix-split-clear-lease-arithmetic.patch",
 ];
 const execFile = promisify(execFileCallback);
 
@@ -81,7 +83,7 @@ const topologyPath = resolve(
 );
 const releaseManifest = JSON.parse(
   await readFile(
-    resolve(repositoryRoot, "firmware/releases/m4-alpha6.json"),
+    resolve(repositoryRoot, "firmware/releases/m4-alpha7.json"),
     "utf8",
   ),
 );

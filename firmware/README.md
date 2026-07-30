@@ -20,11 +20,13 @@ git am /path/to/glove80-control-surface/firmware/patches/0002-split-ack-notifica
 git am /path/to/glove80-control-surface/firmware/patches/0003-harden-leases-and-toggle-control.patch
 git am /path/to/glove80-control-surface/firmware/patches/0004-harden-one-shot-interaction-and-split-deadlines.patch
 git am /path/to/glove80-control-surface/firmware/patches/0005-add-two-bank-hold-interaction.patch
+git am /path/to/glove80-control-surface/firmware/patches/0006-fix-split-scene-delivery-budget.patch
+git am /path/to/glove80-control-surface/firmware/patches/0007-fix-split-clear-lease-arithmetic.patch
 ```
 
 `build-pair.sh surface` then verifies that the checkout is clean and that its
 complete diff from the pinned commit has SHA-256
-`dbd06aa9c363fae57cb9dc706c15bd47154eb5dcba00589b3fa7212bef8bf3e3`.
+`410853ac090ec6859d161d6917914dce50307df3d179c45375ef7b1fcc9881a2`.
 It also verifies the pinned Zephyr revision and SDK version before compiling.
 
 The checked-in MoErgo Layout Editor export is immutable input. The generator

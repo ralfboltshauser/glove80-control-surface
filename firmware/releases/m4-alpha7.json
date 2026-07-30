@@ -1,0 +1,124 @@
+{
+  "releaseId": "m4-alpha7",
+  "protocolVersion": 3,
+  "buildId": "g80m4a07",
+  "topologyId": "glove80-rgb-80-v1",
+  "hardwareValidated": false,
+  "source": {
+    "moergoZmkCommit": "2f73a230e2fc7b2bd64a9736181e87bf54338131",
+    "patches": [
+      {
+        "file": "firmware/patches/0001-leased-glove80-control-surface.patch",
+        "sha256": "c67573455e2e5fe4473ef22b937eeddb7a6390e908cd07994d2f5e69c2f33917"
+      },
+      {
+        "file": "firmware/patches/0002-split-ack-notification.patch",
+        "sha256": "c7967f5289708875106de123c700e7912bebf5dabe945ad6074236e546c2f2ae"
+      },
+      {
+        "file": "firmware/patches/0003-harden-leases-and-toggle-control.patch",
+        "sha256": "3b28b3bf4f37ba63de4e28deae20328b0a99e9ce30cd9f14a7e9a09a0a2c13ba"
+      },
+      {
+        "file": "firmware/patches/0004-harden-one-shot-interaction-and-split-deadlines.patch",
+        "sha256": "7730f70be98cabcf7a8a2036a5777da1afa00277a159a140287bfd7376acde82"
+      },
+      {
+        "file": "firmware/patches/0005-add-two-bank-hold-interaction.patch",
+        "sha256": "0585dcc3e5f45c5898a95de96a08c0d260506dfef201e340cc7b068bc625639d"
+      },
+      {
+        "file": "firmware/patches/0006-fix-split-scene-delivery-budget.patch",
+        "sha256": "66f83dc8e29390ab25503c7d600a8a9375611f01e9431962f1af6f96cd72d822"
+      },
+      {
+        "file": "firmware/patches/0007-fix-split-clear-lease-arithmetic.patch",
+        "sha256": "67c2f534c02e3660abaf339888c96a1139b4b45e698e7e918b85261a94ac507f"
+      }
+    ],
+    "sourceDiffSha256": "410853ac090ec6859d161d6917914dce50307df3d179c45375ef7b1fcc9881a2",
+    "zephyrCommit": "dacab4875df72109b96cc8977547a0dc04875bcd",
+    "zephyrSdk": "0.16.3"
+  },
+  "layout": {
+    "name": "Ralf Custom Swiss v8",
+    "uuid": "fe5af554-f9e7-4db1-a4dc-e99d817603fd",
+    "sourceKeymapSha256": "732b79ad73a3b93d74c5fc6d3002411a4dfd7e4338149b77922bad7105479410",
+    "layoutJsonSha256": "aa4de7a2e830fa70462cc3a6f1779b97c335de045edf5a7dbdb2ed9c156f91d3",
+    "derivedKeymapSha256": "b0256aafbd55bf40cee502371e8bdace025417cdf936e051fd8a0a8b731516e9",
+    "preservedLayers": ["Base", "Lower", "Magic", "Factory"],
+    "generatedLayer": "Control",
+    "interactionGesture": {
+      "kind": "twoBankHold",
+      "primary": {
+        "position": 75,
+        "cell": 69,
+        "ledChannel": 55,
+        "fallback": "KP_DOT"
+      },
+      "secondary": {
+        "position": 76,
+        "cell": 70,
+        "ledChannel": 61,
+        "fallback": "KP_N0"
+      },
+      "holdTimeoutMillis": 30000
+    }
+  },
+  "topology": {
+    "sha256": "5b8f71b84e472e59f0bffeccd8911d331613b715e4c5b656afba3802760430d4",
+    "cellCount": 80
+  },
+  "surface": {
+    "lh": {
+      "file": "glove80_surface_lh.uf2",
+      "bytes": 485376,
+      "sha256": "8ce547109b385d3f3874306761c972a868f6856555096b2f4aec730624727467",
+      "uf2Family": "0x9807b007"
+    },
+    "rh": {
+      "file": "glove80_surface_rh.uf2",
+      "bytes": 371200,
+      "sha256": "b7526b040365d7646aa9296df2cb9a15f9171331a215de06338951dae9c4228a",
+      "uf2Family": "0x9808b007"
+    }
+  },
+  "recovery": {
+    "meaning": "Clean pinned MoErgo firmware with the exact Ralf Custom Swiss v8 keymap; it preserves the bootloader and settings partition.",
+    "lh": {
+      "file": "glove80_recovery_lh.uf2",
+      "bytes": 461312,
+      "sha256": "0863da85b17f06f17ecfac4fdac3560c0f56becdfaecd85e953fbc9404b53ceb",
+      "uf2Family": "0x9807b007"
+    },
+    "rh": {
+      "file": "glove80_recovery_rh.uf2",
+      "bytes": 363520,
+      "sha256": "cc95d8a91de3e3d9688b1f62fb77dd084ffa57ff0355a36fc0ea4143eb7f682c",
+      "uf2Family": "0x9808b007"
+    }
+  },
+  "flashPartition": {
+    "start": "0x26000",
+    "endExclusive": "0xec000",
+    "preservesStorageAndBootloader": true
+  },
+  "changes": [
+    "Use a BLE notification for right-half acknowledgements and require its encrypted-read permission.",
+    "Make interaction entry, exit, and cell events atomic with lease expiry.",
+    "Bound split submission and delivery to 3500 ms inside a 4000 ms relative-lease reserve.",
+    "Express transparent clear lifetime as the reserve plus an explicit one-second lease, avoiding unsigned underflow.",
+    "Keep transparent clear scenes eligible after queue delay while bounding each transfer attempt.",
+    "Clear a stale local overlay when electrical limits reject a new scene.",
+    "Hold printed Up for primary actions or printed Down for secondary actions; release returns immediately to the preserved Swiss v8 typing layout.",
+    "Cache two 80-cell availability masks with each atomic scene so both halves can reveal available actions without host RGB streaming.",
+    "Render held-modifier and action-key pressed feedback locally; the first modifier wins and a 30-second fail-safe closes a lost hold."
+  ],
+  "knownUncertainty": {
+    "rightAcknowledgement": "Alpha6 repeatedly aborted the twelve-fragment transfer before the right half rendered. Alpha7's corrected bounded timing and acknowledgement permission compile and reproduce, but still require post-flash hardware proof.",
+    "splitTiming": "The 3500 ms transfer bound is inside a 4000 ms lease reserve; successful delivery therefore retains a 500 ms expiry margin. Actual timing still requires hardware measurement.",
+    "interactionFeedback": "Printed Up/Down positions and their right-side LED channels are derived from the checked-in topology and compiled DTS; physical confirmation still requires the grouped flash gate.",
+    "rightLedOrder": "Physical cell 40 rendered on F6 during alpha1 testing; complete right-side order still requires host-side calibration.",
+    "transport": "Runtime control is intentionally USB-only in protocol v3; BLE typing remains stock."
+  }
+}

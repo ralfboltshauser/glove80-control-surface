@@ -111,6 +111,24 @@ describe("complete 80-cell surface device", () => {
     expect(transport.openConnections).toBe(0);
   });
 
+  it("uses a production lease long enough for bounded split renewal", async () => {
+    const transport = new FakeFirmwareTransport([genericDescriptor]);
+    const surface = new GenericSurfaceDevice(
+      transport,
+      new FakeScheduler(),
+    );
+    await surface.setDesired(fullScene(5));
+    await surface.enable();
+
+    expect(
+      transport.hostPackets.find(
+        (packet) => packet.kind === PacketKind.OpenSession,
+      ),
+    ).toMatchObject({ leaseMillis: 16_000 });
+    expect(surface.snapshot().leaseExpiresAtMillis).toBe(16_000);
+    await surface.disable();
+  });
+
   it("reports independent right-half acknowledgement without discarding the left scene", async () => {
     const transport = new FakeFirmwareTransport([genericDescriptor]);
     transport.rightConnected = false;
@@ -180,12 +198,12 @@ describe("complete 80-cell surface device", () => {
     await surface.setDesired(fullScene(13));
     await surface.enable();
 
-    expect(scheduler.waits).toHaveLength(20);
+    expect(scheduler.waits).toHaveLength(40);
     expect(
       transport.hostPackets.filter(
         (packet) => packet.kind === PacketKind.StatusQuery,
       ),
-    ).toHaveLength(21);
+    ).toHaveLength(41);
     expect(surface.snapshot()).toMatchObject({
       connection: "partial",
       applied: {
